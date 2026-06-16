@@ -216,7 +216,10 @@ interfaces, separating pure domain logic from I/O:
   state; dedicated ViewModels back Current Conditions, the Daily Forecast, Place
   Search, and the Unit Preferences settings surface.
 - **Views (XAML)** + **DI composition root** + **Serilog wiring** — thin, declarative
-  binding and application bootstrap.
+  binding and application bootstrap. *(The rolling-file **configuration** — the log path
+  and the rolling/retention policy — is factored into a small, plain tested module so its
+  on-disk write is unit-tested; only the **wiring** that registers Serilog with the host stays
+  untestable bootstrap. See "Excluded from unit tests" below.)*
 
 **Networking and resilience.** Weather, geocoding, and IP-geolocation access use
 `IHttpClientFactory` typed clients with `Microsoft.Extensions.Http.Resilience`
@@ -286,8 +289,15 @@ IP-geolocation endpoints deliberately.
   and the loading / empty / error inline states, driven through faked services.
 
 **Excluded from unit tests** (coverage-excluded as untestable UI/wiring): the XAML
-Views, the DI composition root, and Serilog bootstrap. These are exercised by the
-end-to-end suite and manual verification.
+Views, the DI composition root, and the Serilog **bootstrap** — i.e. the wiring that
+registers Serilog with the host (`AddSerilog`, provider registration, the development-only
+Debug sink). These are exercised by the end-to-end suite and manual verification.
+
+The Serilog rolling-file **configuration** (the log path and the rolling/retention policy) is
+**not** in this excluded set: it is factored into a small, plain module that is unit-tested with
+a real on-disk round-trip, so it counts toward the 100% gate like any other production code. The
+line is deliberate — *configuring* where and how logs are written is testable behaviour, while
+*wiring* the configured logger into the MAUI host is untestable bootstrap.
 
 **Prior art.** None yet — this is the first code in a greenfield repo, so this PRD
 establishes the testing baseline. Stack: xUnit (runner), Moq (fakes), Awesome­
