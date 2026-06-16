@@ -9,7 +9,7 @@ _Last reconciled with reality: 2026-06-16._
 2. **The UI thread never blocks.** All I/O is `async`; no `.Result`, `.Wait()`, or `.GetAwaiter().GetResult()` on the UI thread. A frozen UI is a defect, not a nit.
 3. **All weather-provider access goes through one typed client.** Every call to the data provider routes through a single typed service (e.g. `IWeatherService`). No ad-hoc `HttpClient` usage scattered across ViewModels or views.
 4. **Unit tests never touch the network; end-to-end tests do.** Unit tests always fake the provider — no live calls (flaky, rate-limited). A separate end-to-end suite exercises the real Open-Meteo API deliberately.
-5. **100% unit-test coverage.** Coverage is a hard gate, not an aspiration. New production code arrives with the unit tests that cover it.
+5. **100% unit-test coverage of testable production code.** Coverage is a hard gate, not an aspiration. New production code arrives with the unit tests that cover it. The XAML Views, the DI composition root, and the Serilog bootstrap are untestable UI/wiring and are coverage-excluded (via `[ExcludeFromCodeCoverage]`); the 100% gate applies to everything else.
 
 ## Frameworks
 - **.NET MAUI on .NET 10 (LTS)** — cross-platform desktop UI from a single codebase. Ships to Windows first; macOS is a planned future target, so no Windows-only APIs without an abstraction.
