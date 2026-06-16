@@ -241,18 +241,30 @@ proof — this is the payload of the tracer bullet.
 
 ## 7. Reconciliations with upstream artefacts
 
-- **R1 — Principle 5 wording (consistency-check C1, 2026-06-16).** Technical-Context Overriding
-  Principle 5 states "100%" flatly, while the PRD and Roadmap carve out the XAML View / DI composition
-  root / Serilog bootstrap as coverage-excluded. This Feature **implements the exclusion exactly as the
-  PRD/Roadmap describe** (via the include-filter + `[ExcludeFromCodeCoverage]`). The authoritative
-  wording fix to Principle 5 is a **human-owned prescriptive edit** (already tracked in the
-  2026-06-16 consistency check) — this Feature does not silently edit the principle; the gate
-  configuration is the mechanical embodiment of the already-agreed intent.
+- **R1 — Principle 5 coverage exclusion (consistency-check C1, 2026-06-16).** Technical-Context Overriding
+  Principle 5 **already states the exclusion explicitly** — "100% unit-test coverage of testable production
+  code … The XAML Views, the DI composition root, and the Serilog bootstrap are untestable UI/wiring and are
+  coverage-excluded (via `[ExcludeFromCodeCoverage]`); the 100% gate applies to everything else." This Feature
+  **implements that exclusion exactly** (via the include-filter `[WeatherPoC.Core]*` + `[ExcludeFromCodeCoverage]`);
+  the gate configuration is the mechanical embodiment of the principle as written. (Consistency check C1 flagged
+  an earlier flat "100%" wording; the human-owned wording fix to Principle 5 has since landed — it now carries the
+  carve-out — so no edit to the principle is pending.)
 - **R2 — CI/CD scope.** The PRD lists "CI/CD pipeline, signing, and installer packaging" under
   *Out of Scope* (release mechanics are separate from the product PRD), while Roadmap F1 explicitly
   pulls in the build + test + coverage pipeline. **No contradiction:** this Feature lands **only** the
   build + test + coverage spine (the de-risking mechanism, per Roadmap F1's "only build + test +
   coverage is pulled in here"); **signing and installer packaging stay deferred**, matching the PRD.
+- **R3 — Roadmap F1 "vacuous gate" framing (feature-doc-gauntlet, 2026-06-16).** Roadmap Feature 1
+  originally stated "the coverage gate passes vacuously" and that the Feature "ships no testable production
+  code" — language from the earlier draft's vacuous-100%-of-nothing-plus-disposable-canary approach. This
+  Feature instead lands `LoggingSetup` (§4.3) as the one real, fully-covered gated module, so the gate is
+  **non-vacuous** and no canary is needed. The `/feature-doc-gauntlet` re-run flagged the resulting
+  Spec/Plan ↔ Roadmap contradiction (the Roadmap **outranks** the Spec/Plan in the authority order).
+  **Resolution:** rather than reverting this design to a vacuous gate, the higher-authority `Roadmap.md`
+  was amended — Feature 1 (its intro and *Out of scope*) and Feature 2's "first real testable production
+  code" line — to record that `LoggingSetup` is the real gated module landing in F1, so Feature 2 is the
+  first real **domain** code rather than the first testable code at all. Decision taken by the Feature owner
+  during the `/fix-feature-docs` pass on 2026-06-16.
 
 ## 8. Context references (load these for `/writing-plans` and the AFK Developer Agent)
 
@@ -282,11 +294,9 @@ proof — this is the payload of the tracer bullet.
 
 ## Feature-doc-gauntlet sign-off
 
-- **Result:** fail
-- **Date:** 2026-06-16 (full re-run, all three leaves fresh)
-- **Summary:** Cross-artefact consistency raised one blocker — Roadmap Feature 1 still says the skeleton ships no testable production code and the coverage gate passes vacuously, contradicting this Spec/Plan which land `LoggingSetup` as real gated production code; the seam-cynicism and doc/ADR leaves passed.
-- **Leaves:** check-seam-cynicism (**pass**), check-doc-adr-consistency (**pass**), check-artefact-consistency (**fail**)
-- **Open findings:**
-  - *(surfaced_by: check-artefact-consistency — contradiction with a higher-authority artefact)* `Roadmap.md` Feature 1 states "There is no production logic yet — the coverage gate passes vacuously" and "this Feature deliberately ships no testable production code", but Spec §4.3 and Plan Task 1 deliberately land `LoggingSetup` as real, fully-covered gated production code in `WeatherPoC.Core`, making the gate explicitly **non-vacuous** (acceptance 4/5/8). The Roadmap **outranks** the Spec/Plan in the authority order (`… > Roadmap > Spec > Plan`), so the Spec/Plan silently supersede a higher-authority artefact that was never updated; an agent reading the Roadmap would expect zero gated production code and a vacuous gate. **The Spec §7 reconciliations cover R1 (Principle 5 wording) and R2 (CI/CD scope) but not this Roadmap divergence.**
-- **Resolution (decision-needed — confirm with the human once):** the fix touches the higher-authority `Roadmap.md`. The likely direction is to update Roadmap F1 to record that `LoggingSetup` is the one real gated module landing in F1 (the anti-vacuous-pass / canary rationale is already satisfied by it) and add a matching `R3` reconciliation to Spec §7 — aligning the authoritative artefact with the sound Spec/Plan design rather than reverting the design to a vacuous gate.
-- **Next step:** Do **not** proceed to `enate-to-stories`. Route to `/fix-feature-docs` to close the open finding (resolve the direction with the human first, since it edits the higher-authority Roadmap), then re-run `/feature-doc-gauntlet` in full. Only a `Result: pass` sign-off clears this Feature for story breakdown.
+- **Result:** fail — **fix-pass applied 2026-06-16; this sign-off is now stale, awaiting a full re-run.**
+- **Date:** 2026-06-16 (run), 2026-06-16 (fix pass applied)
+- **Prior run:** The 2026-06-16 full re-run failed on one `check-artefact-consistency` blocker — Roadmap Feature 1 still said the skeleton "ships no testable production code" and the coverage gate "passes vacuously", contradicting this Spec/Plan which land `LoggingSetup` as real, fully-covered gated production code (the Roadmap outranks the Spec/Plan). The seam-cynicism and doc/ADR leaves passed.
+- **Fix pass (`/fix-feature-docs`, 2026-06-16):** Deduplicated to one root cause and **closed** it. Decision taken by the Feature owner: amend the higher-authority `Roadmap.md` to match this design rather than revert. `Roadmap.md` Feature 1 (intro + *Out of scope*) and Feature 2's "first real testable production code" line were re-worded to record that `LoggingSetup` is the real gated module landing in F1; Spec §7 gained reconciliation **R3** (and the stale R1 wording was swept — Principle 5 already carries the carve-out). See the **fix-pass closure map** in the Plan's `## Self-Review`.
+- **Leaves (prior run):** check-seam-cynicism (pass), check-doc-adr-consistency (pass), check-artefact-consistency (fail)
+- **Next step:** This sign-off **predates the fix-pass edits** and must not be trusted. Re-run `/feature-doc-gauntlet` in full (all three leaves, fresh); the re-run overwrites this section. Only a `Result: pass` sign-off clears this Feature for `enate-to-stories`.

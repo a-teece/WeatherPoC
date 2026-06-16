@@ -881,3 +881,13 @@ Every seam maps to a Task that quotes its contract and a step that writes its pr
 | obs. Orphaned seam-taxonomy path | Sibling-repo path unresolvable from the project root | Annotated reference-only / sibling repo | Plan Context references block |
 
 All four findings closed and the on-path observation swept; the Spec and Plan were edited jointly. Ready for a **full** `/feature-doc-gauntlet` re-run (all three leaves, fresh).
+
+**6. Fix-pass closure map** *(answers the failed `/feature-doc-gauntlet` re-run of 2026-06-16 recorded in the Spec sign-off; one finding, raised by `check-artefact-consistency`)*
+
+| Finding | Root cause | Fix (decision) | Closure evidence |
+|---|---|---|---|
+| Roadmap F1 contradicts the Spec/Plan: it says the gate "passes vacuously" and the Feature "ships no testable production code", but Spec §4.3 / Plan Task 1 land `LoggingSetup` as real, fully-covered gated code — and the Roadmap outranks the Spec/Plan | The higher-authority Roadmap F1 was never updated when this design dropped the disposable `SkeletonMarker` canary in favour of the real `LoggingSetup` module; no reconciliation was recorded | Feature owner chose (during `/fix-feature-docs`, 2026-06-16) to **amend the Roadmap to match this design**, not revert: re-worded Roadmap F1 (intro + *Out of scope*) and Roadmap F2's "first real testable production code" line; added Spec §7 reconciliation **R3** | `grep -nE 'passes vacuously\|ships no testable production code\|first real testable production code' Roadmap.md` returns nothing; Roadmap F1 now reads "the coverage gate has real coverable code and is **not** vacuous" + names `LoggingSetup` as the shipped testable code, F2 now reads "first real **domain** production code … the gate already has real teeth from Feature 1's `LoggingSetup` module"; Spec §7 R3 records the amendment. The Plan body already described the non-vacuous `LoggingSetup` design, so it carried no restatement of the old framing to align. |
+
+On-path observation swept: Spec §7 **R1** previously characterised Technical-Context Overriding Principle 5 as stating "100%" flatly with a wording fix still pending — but Principle 5 already carries the XAML-View/DI-root/Serilog-bootstrap coverage carve-out, so R1 was corrected to match the principle as written (no edit to the principle was needed or made).
+
+One root cause closed; one decision taken by the Feature owner; the on-path observation swept; Spec, Plan, and the higher-authority Roadmap edited jointly. Ready for a **full** `/feature-doc-gauntlet` re-run (all three leaves, fresh).
