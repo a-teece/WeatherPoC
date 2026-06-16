@@ -6,16 +6,19 @@ Precise definitions of the domain terms WeatherPoC uses. This is a glossary only
 The individual using WeatherPoC on their desktop. WeatherPoC is single-user: there is one User per running instance, and all preferences — the Saved Location, the Unit System override — belong to that User.
 
 ## Active Location
-The single Location whose weather is currently displayed. It is the Saved Location when the User has set one, and the Detected Location otherwise. WeatherPoC shows weather for exactly one Active Location at a time — never several at once.
+The single Location whose weather is currently displayed. It is the Saved Location when the User has set one, otherwise the Detected Location. WeatherPoC shows weather for exactly one Active Location at a time — never several at once. The Active Location may be absent: until a Location has been detected or the User has chosen one via Place Search, there is no Active Location and no weather to show.
 
 ## Detected Location
-The Location automatically derived from the device's current position. It is the default Active Location, used whenever the User has not set a Saved Location. Not chosen by the User and not remembered — it is re-derived from the device rather than persisted, which distinguishes it from a Saved Location.
+A Location WeatherPoC determines automatically — without the User naming a place — by best-effort detection of where the User is. It is the default Active Location whenever the User has not set a Saved Location. Approximate by nature and not always available: when detection cannot place the User at all, there is no Detected Location and the User must choose one via Place Search. Not chosen by the User and not persisted — it is re-derived rather than remembered, which distinguishes it from a Saved Location.
 
 ## Location
 A geographic point on Earth, identified by coordinates and carrying a human-readable place name, that weather can be reported for. It is the thing Current Conditions and a Daily Forecast attach to. Distinct from a raw device position: a position becomes a Detected Location only once it has been resolved to a named place.
 
+## Place Search
+Finding a Location by its human-readable place name so the User can choose one explicitly. It is how the User overrides the Detected Location, and the only way to obtain an Active Location when automatic detection fails. A Location chosen through Place Search and kept becomes the Saved Location.
+
 ## Saved Location
-A Location the User has explicitly chosen and persisted, overriding the Detected Location. While a Saved Location is set, it is the Active Location. Distinct from the Detected Location (automatic and transient) — a Saved Location is a deliberate, remembered choice.
+A Location the User has explicitly chosen — via Place Search — and persisted, overriding the Detected Location. While a Saved Location is set, it is the Active Location. Distinct from the Detected Location (automatic and transient) — a Saved Location is a deliberate, remembered choice.
 
 ## Current Conditions
 The present-time weather at the Active Location: the set of Weather Variables describing the weather right now. Distinct from the Daily Forecast, which describes expected future weather rather than the present moment.

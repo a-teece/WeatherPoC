@@ -18,6 +18,7 @@ _Last reconciled with reality: 2026-06-16._
 ## 3rd-party tech
 - **Open-Meteo (Weather Forecast API)** — current conditions and forecast data. Free, open data, **no API key required**.
 - **Open-Meteo Geocoding API** — resolves place names to coordinates for lookups.
+- **IP-geolocation service** *(provider TBD — see `docs/adr/0001-location-detection-cascade.md`)* — approximates the User's location when device GPS is unavailable or denied.
 
 ## Packages in use
 Reach for these before pulling in a new dependency. A new package needs a reason these don't cover.
@@ -31,7 +32,7 @@ Reach for these before pulling in a new dependency. A new package needs a reason
 **Testing:** xUnit (runner), Moq (fakes/mocks), AwesomeAssertions (fluent assertions), coverlet (coverage measurement for the 100% gate)
 
 ## Instrumentation
-Serilog is the logging backbone. Logs write to a **rolling file in the per-user app-data folder**; in development a Debug sink mirrors output to the IDE. **No telemetry leaves the user's machine** — there is no crash-reporting or analytics service; logging is local-only by design.
+Serilog is the logging backbone. Logs write to a **rolling file in the per-user app-data folder**; in development a Debug sink mirrors output to the IDE. **No telemetry leaves the user's machine** — there is no crash-reporting or analytics service; logging is local-only by design. This "local-only" rule governs **telemetry and diagnostics**, not **functional** API calls — fetching weather, geocoding, or IP-based location necessarily sends requests (and therefore the source IP) to third parties, and that is expected.
 
 Always logged, regardless of level configuration:
 - **Every Open-Meteo call** — endpoint, response status, and latency.
