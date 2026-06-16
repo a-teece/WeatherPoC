@@ -7,7 +7,7 @@
 
 Features are listed in delivery order. Each Feature gets its own `/brainstorming` session, Spec, and Plan.
 
-**Dependency chain:** 1 → 2 → 3; Feature 4 depends on 2 + 3; Feature 5 depends on 2 + 3 (independent of 4); Feature 6 depends on 5.
+**Dependency chain:** 1 → 2 → 3; Feature 4 depends on 2 + 3; Feature 5 depends on 2 + 3 (domain-independent of 4, but reuses F4's Settings page shell — see Feature 5); Feature 6 depends on 5.
 
 ---
 
@@ -59,7 +59,7 @@ The User can set the Active Location by hand instead of living with the hard-cod
 
 **Out of scope:** Automatic location detection (GPS / IP) — that is Feature 6; here, location is only what the User searches for. A saved-list / multiple locations — exactly one Active Location at a time, always. The detected-vs-saved distinction is only half-real here (there is no Detected Location yet to contrast against); it completes in Feature 6.
 
-**Dependencies:** Feature 2 (the Active Location drives the Current Conditions fetch/display already built) and Feature 3 (the forecast re-fetches for the newly chosen Location). Independent of Feature 4 — units and location are orthogonal.
+**Dependencies:** Feature 2 (the Active Location drives the Current Conditions fetch/display already built) and Feature 3 (the forecast re-fetches for the newly chosen Location). **Domain-independent of Feature 4** — units and location are orthogonal — **but Place Search is hosted in a Location section of the Settings page Feature 4 introduces, so Feature 5 reuses Feature 4's Settings page shell** (a presentation dependency only; the 1→…→6 delivery order already builds Feature 4 first). See `docs/superpowers/specs/0005-place-search-and-saved-location.md` §7 R1.
 
 ---
 
