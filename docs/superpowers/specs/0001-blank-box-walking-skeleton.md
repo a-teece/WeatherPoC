@@ -294,9 +294,13 @@ proof — this is the payload of the tracer bullet.
 
 ## Feature-doc-gauntlet sign-off
 
-- **Result:** fail — **fix-pass applied 2026-06-16; this sign-off is now stale, awaiting a full re-run.**
-- **Date:** 2026-06-16 (run), 2026-06-16 (fix pass applied)
-- **Prior run:** The 2026-06-16 full re-run failed on one `check-artefact-consistency` blocker — Roadmap Feature 1 still said the skeleton "ships no testable production code" and the coverage gate "passes vacuously", contradicting this Spec/Plan which land `LoggingSetup` as real, fully-covered gated production code (the Roadmap outranks the Spec/Plan). The seam-cynicism and doc/ADR leaves passed.
-- **Fix pass (`/fix-feature-docs`, 2026-06-16):** Deduplicated to one root cause and **closed** it. Decision taken by the Feature owner: amend the higher-authority `Roadmap.md` to match this design rather than revert. `Roadmap.md` Feature 1 (intro + *Out of scope*) and Feature 2's "first real testable production code" line were re-worded to record that `LoggingSetup` is the real gated module landing in F1; Spec §7 gained reconciliation **R3** (and the stale R1 wording was swept — Principle 5 already carries the carve-out). See the **fix-pass closure map** in the Plan's `## Self-Review`.
-- **Leaves (prior run):** check-seam-cynicism (pass), check-doc-adr-consistency (pass), check-artefact-consistency (fail)
-- **Next step:** This sign-off **predates the fix-pass edits** and must not be trusted. Re-run `/feature-doc-gauntlet` in full (all three leaves, fresh); the re-run overwrites this section. Only a `Result: pass` sign-off clears this Feature for `enate-to-stories`.
+- **Result:** pass
+- **Date:** 2026-06-16
+- **Summary:** All three leaves passed on a clean full re-run — the prior `check-artefact-consistency` blocker (Roadmap F1 "passes vacuously" / "ships no testable production code") is resolved and the fix-pass amendment introduced no new contradiction.
+- **Leaves:** check-seam-cynicism (pass), check-doc-adr-consistency (pass), check-artefact-consistency (pass)
+- **Supersedes:** the stale `fail` sign-off from the 2026-06-16 re-run (which predated the `/fix-feature-docs` edits). This sign-off reflects a fresh full re-run of all three leaves against the current Spec, Plan, and the amended `Roadmap.md`.
+- **Non-gating observations (do not block `enate-to-stories`):**
+  - *Seam 1 (Plan Task 5):* the gate's build-failing power ultimately rests on the GitHub Actions `pwsh` step translating a non-zero script exit code into a failed CI step — standard runner behaviour, and the script's own exit-code logic is proven by the self-test; worth one live CI red-run as belt-and-braces.
+  - *Seam 3 launch/DI half (Plan Task 6):* proven manually by design (automated UI-launch out of scope, §3) — depends on the screenshot/log evidence actually being attached to the PR.
+  - The `LoggingSetup` technical term is absent from `Context.MD` (by design — it is a domain glossary and no domain terms ship in F1), and the cited `docs/superpowers/consistency-checks/2026-06-16.md` exists in the tree.
+- **Next step:** This Feature is **cleared for `enate-to-stories`**. A later substantive edit to this Spec or the Plan invalidates this sign-off — re-run `/feature-doc-gauntlet` in full rather than trusting it.
