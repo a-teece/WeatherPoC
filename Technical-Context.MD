@@ -18,7 +18,8 @@ _Last reconciled with reality: 2026-06-16._
 ## 3rd-party tech
 - **Open-Meteo (Weather Forecast API)** — current conditions and forecast data. Free, open data, **no API key required**.
 - **Open-Meteo Geocoding API** — resolves place names to coordinates for lookups.
-- **IP-geolocation service** *(provider TBD — see `docs/adr/0001-location-detection-cascade.md`)* — approximates the User's location when device GPS is unavailable or denied.
+- **BigDataCloud `reverse-geocode-client`** *(keyless; see `docs/adr/0001-location-detection-cascade.md` and `docs/superpowers/specs/0006-automatic-location-detection.md`)* — one keyless HTTPS endpoint serving both detection branches: **with** coordinates it reverse-geocodes a GPS fix to a named place; **without** coordinates it geolocates the caller's IP (city-level) when device GPS is unavailable or denied. No API key. *(MAUI `Geocoding` was rejected — it needs a Bing Maps key on Windows.)*
+- **Device GPS via MAUI Essentials** — `Geolocation` + `Permissions<LocationWhenInUse>` (keyless on all platforms) supply the device position fix that BigDataCloud then names; abstracted behind a Core interface so a future macOS implementation drops in without touching cascade logic.
 
 ## Packages in use
 Reach for these before pulling in a new dependency. A new package needs a reason these don't cover.
@@ -37,6 +38,7 @@ Serilog is the logging backbone. Logs write to a **rolling file in the per-user 
 
 Always logged, regardless of level configuration:
 - **Every Open-Meteo call** — endpoint, response status, and latency.
+- **Every detection call** (BigDataCloud geolocation/reverse-geocode) — endpoint, response status, and latency (same shape as the Open-Meteo logging).
 - **Every unhandled exception.**
 
 ## User Feedback Approach
