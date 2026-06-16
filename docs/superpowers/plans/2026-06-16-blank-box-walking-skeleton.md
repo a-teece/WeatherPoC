@@ -4,23 +4,25 @@
 
 **Goal:** Stand up a native Windows .NET MAUI app that launches to an empty box, backed by an xUnit test project and a CI pipeline that builds the app, runs the tests, and enforces a 100%-unit-test-coverage gate proven able to *fail* a build.
 
-**Architecture:** Three projects in one solution — a coverage-excluded MAUI app head (`WeatherPoC`), a plain `net10.0` gated production surface (`WeatherPoC.Core`) holding only a throwaway canary, and an xUnit test project (`WeatherPoC.Tests`) that references Core but **not** the app. The coverage gate's pass/fail rule lives in a standalone PowerShell script proven against real coverlet-produced Cobertura fixtures; CI wires that script in plus a scope assertion and a self-test that reproduces the gate's green/red behaviour deterministically. No domain logic ships in this Feature.
+**Architecture:** Three projects in one solution — a coverage-excluded MAUI app head (`WeatherPoC`), a plain `net10.0` gated production surface (`WeatherPoC.Core`) holding the Serilog logging-configuration module `LoggingSetup` (the one real, testable piece of infrastructure the skeleton needs, and the gated surface's coverable code), and an xUnit test project (`WeatherPoC.Tests`) that references Core but **not** the app. The coverage gate's pass/fail rule lives in a standalone PowerShell script proven against real **ReportGenerator-produced** Cobertura fixtures — the exact artefact CI gates on; CI wires that script in plus a scope assertion and a self-test that reproduces the gate's green/red behaviour deterministically. No domain logic ships in this Feature (logging configuration is infrastructure, not domain).
 
 **Tech Stack:** .NET MAUI on .NET 10, MVVM (CommunityToolkit.Mvvm), Serilog (+ Serilog.Extensions.Logging, rolling-file and Debug sinks), xUnit + Moq + AwesomeAssertions + coverlet.collector, ReportGenerator, GitHub Actions on `windows-latest`. (All matching `Technical-Context.MD` → Packages in use.)
 
 **Context references:**
 - Spec: `docs/superpowers/specs/0001-blank-box-walking-skeleton.md`
 - `Context.MD`
-- `Technical-Context.MD` (Overriding Principles that apply: **P5** — 100% coverage gate with XAML View / DI composition root / Serilog bootstrap coverage-excluded *(headline)*; **P2** — UI thread never blocks *(trivially satisfied — no I/O here)*; **P4** — unit tests never touch the network *(trivially satisfied)*; **P1/P3** latent — no secrets, no provider yet)
+- `Technical-Context.MD` (Overriding Principles that apply: **P5** — 100% coverage gate with XAML View / DI composition root / Serilog bootstrap coverage-excluded *(headline)*; **P2** — UI thread never blocks *(trivially satisfied — no UI-thread I/O here)*; **P4** — unit tests never touch the network *(satisfied: the `LoggingSetup` test does real **disk** I/O in a temp directory, not network)*; **P1/P3** latent — no secrets, no provider yet)
 - `Roadmap.md` — Feature 1 entry
 - `PRD.md` — stories 38–41 (privacy, local logs, Windows native, macOS-viable), Architecture, Testing Decisions
 - ADRs (awareness only — neither is implemented here): `docs/adr/0001-location-detection-cascade.md`, `docs/adr/0002-per-measurement-unit-defaults.md`
 - `docs/superpowers/consistency-checks/2026-06-16.md` — finding C1 (R1 reconciliation)
-- Seam taxonomy: `enate-claude-skills/docs/seam-taxonomy.md`
+- Seam taxonomy (reference-only — lives in the sibling `enate-claude-skills` repo, **not** in this project tree; the seam contracts it governs are inlined verbatim in the Tasks below, so an AFK Developer Agent need not fetch it): `../enate-claude-skills/docs/seam-taxonomy.md`
 
 > An AFK Developer Agent picking up this plan MUST load every file in the Context references block before writing code.
 
 **A note on package versions:** the versions pinned below are current as of 2026-06 and satisfy spec §9 (versions pinned at Plan time). At the first `dotnet restore` the engineer confirms each resolves against the live NuGet feed and the installed .NET 10 / MAUI workload, and bumps to the nearest available patch if a pin is missing. The `net10.0-windows10.0.19041.0` TFM revision (spec §9) is confirmed against the installed Windows SDK at that point.
+
+**Seam 3 toolchain authority (spec §5 Seam 3 (e)):** the .NET 10 / MAUI Windows target is grounded against the live Microsoft source, not model memory — *Supported platforms for .NET MAUI apps* (`learn.microsoft.com/dotnet/maui/supported-platforms?view=net-maui-10.0`: Windows 11 / Windows 10 version 1809 = `10.0.17763.0` or higher, via WinUI 3) and the *dotnet/maui Release-Versions* wiki (`github.com/dotnet/maui/wiki/Release-Versions`, the authority for exact .NET 10 / Windows App SDK / MAUI workload versions per release). The binding check is the toolchain actually resolved in CI (`actions/setup-dotnet@v4` at `10.0.x` + `dotnet workload install maui` + `dotnet restore`), so the pins above are confirmed live, not asserted.
 
 ---
 
@@ -29,10 +31,10 @@
 | File | Responsibility | Coverage |
 |---|---|---|
 | `WeatherPoC.sln` | Solution tying the three projects together | n/a |
-| `WeatherPoC.Core/WeatherPoC.Core.csproj` | Plain `net10.0` gated production surface; no platform deps (macOS-viable spine) | **included — the gated surface** |
-| `WeatherPoC.Core/SkeletonMarker.cs` | The throwaway canary — one pure type giving the gate a coverable line. Deleted in Feature 2 | included |
+| `WeatherPoC.Core/WeatherPoC.Core.csproj` | Plain `net10.0` gated production surface; references only Serilog + `Serilog.Sinks.File` (cross-platform — no MAUI/Windows deps, macOS-viable spine) | **included — the gated surface** |
+| `WeatherPoC.Core/LoggingSetup.cs` | The Serilog rolling-file configuration (Seam 4 write contract): takes a base directory, returns a configured `LoggerConfiguration`. The gated surface's real coverable code | included |
 | `WeatherPoC.Tests/WeatherPoC.Tests.csproj` | xUnit test project; references Core **only** (never the app) | not measured |
-| `WeatherPoC.Tests/SkeletonMarkerTests.cs` | 100%-covering test for the canary | not measured |
+| `WeatherPoC.Tests/LoggingSetupTests.cs` | Seam 4 on-disk round-trip test: real disk I/O against a temp dir, asserts the line lands in the dated rolling file; 100% covers `LoggingSetup` | not measured |
 | `WeatherPoC/WeatherPoC.csproj` | MAUI app head — empty box, single Windows TFM, references Core | **excluded** |
 | `WeatherPoC/MauiProgram.cs` | DI composition root + Serilog bootstrap; `[ExcludeFromCodeCoverage]` | excluded |
 | `WeatherPoC/App.xaml(.cs)` | Application bootstrap + window creation; `[ExcludeFromCodeCoverage]` | excluded |
@@ -41,21 +43,25 @@
 | `scripts/Check-Coverage.ps1` | The threshold gate (Seam 1 contract): parse Cobertura, fail on `lines-valid==0` or `lines-covered<lines-valid` | n/a |
 | `scripts/Check-CoverageScope.ps1` | The scope assertion (Seam 2 contract): the report measures exactly `WeatherPoC.Core` | n/a |
 | `scripts/Test-CoverageGate.ps1` | Seam 1 boundary-crossing self-test: runs the gate against real Cobertura fixtures (proofs a/b/c) | n/a |
-| `ci/coverage-fixtures/{green,below,empty}.cobertura.xml` | Real coverlet-produced Cobertura payloads for the self-test | n/a |
+| `ci/coverage-fixtures/{green,below,empty}.cobertura.xml` | Real **ReportGenerator-merged** Cobertura payloads (the exact artefact the gate reads) for the self-test | n/a |
 | `.github/workflows/ci.yml` | Build + test + coverage report + gate + scope assertion + self-test on `windows-latest` | n/a |
 
 ---
 
-## Task 1: Solution spine — Core + Tests + the canary (TDD)
+## Task 1: Solution spine — Core logging-config module + its on-disk round-trip test (Seam 4) (TDD)
 
-This is the fast, macOS-viable spine (`net10.0`, no platform deps). It establishes red-green-commit on the canary before any MAUI machinery exists.
+**Seam 4 — Serilog logging → rolling on-disk file. Class: persistent-on-disk-state + host-OS/runtime (path semantics). Internal.**
+**Contract (verbatim from spec §5 Seam 4):** Given a base directory `D`, the configured logger writes to `D/logs/weatherpoc-<yyyyMMdd>.log` (daily rolling interval, 7 files retained); a line written at `Information` level is present, verbatim, in that file after the logger is flushed/disposed. The base directory is a required, non-null parameter — `LoggingSetup` does not itself resolve `FileSystem.AppDataDirectory`.
+**Proof (this Task):** an automated on-disk round-trip test — real I/O on the write side — calls `LoggingSetup` with a temp directory, logs a known line, flushes, reads the dated file back from disk, and asserts the line is present.
+
+This is the fast, macOS-viable spine (`net10.0`, Serilog + `Serilog.Sinks.File` only — both cross-platform). It establishes red-green-commit on the real logging-config module before any MAUI machinery exists. `LoggingSetup` is the gated surface's coverable code, so **no throwaway canary is needed** (spec §4.3).
 
 **Files:**
 - Create: `WeatherPoC.sln`
 - Create: `WeatherPoC.Core/WeatherPoC.Core.csproj`
-- Create: `WeatherPoC.Core/SkeletonMarker.cs`
+- Create: `WeatherPoC.Core/LoggingSetup.cs`
 - Create: `WeatherPoC.Tests/WeatherPoC.Tests.csproj`
-- Test: `WeatherPoC.Tests/SkeletonMarkerTests.cs`
+- Test: `WeatherPoC.Tests/LoggingSetupTests.cs`
 
 - [ ] **Step 1: Scaffold the solution and the two non-MAUI projects**
 
@@ -72,7 +78,7 @@ rm WeatherPoC.Core/Class1.cs WeatherPoC.Tests/UnitTest1.cs
 
 - [ ] **Step 2: Pin the Core project file**
 
-Overwrite `WeatherPoC.Core/WeatherPoC.Core.csproj` with:
+Overwrite `WeatherPoC.Core/WeatherPoC.Core.csproj` with (Serilog + the file sink are plain .NET, so Core stays macOS-viable):
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -82,6 +88,11 @@ Overwrite `WeatherPoC.Core/WeatherPoC.Core.csproj` with:
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+  </ItemGroup>
 
 </Project>
 ```
@@ -119,64 +130,93 @@ Overwrite `WeatherPoC.Tests/WeatherPoC.Tests.csproj` with:
 
 > Moq is listed in the fixed testing stack and is pinned here so the scaffold matches `Technical-Context.MD`; it has no use in Feature 1 (no collaborators to fake yet) and earns its keep from Feature 2.
 
-- [ ] **Step 4: Write the failing canary test**
+- [ ] **Step 4: Write the failing Seam 4 round-trip test**
 
-Create `WeatherPoC.Tests/SkeletonMarkerTests.cs`:
+Create `WeatherPoC.Tests/LoggingSetupTests.cs`:
 
 ```csharp
 using AwesomeAssertions;
+using Serilog;
 using WeatherPoC.Core;
 using Xunit;
 
 namespace WeatherPoC.Tests;
 
-public class SkeletonMarkerTests
+public class LoggingSetupTests
 {
     [Fact]
-    public void Marker_returns_the_walking_skeleton_constant()
+    public void Configured_logger_writes_the_line_to_a_dated_rolling_file_on_disk()
     {
-        var marker = new SkeletonMarker();
+        var baseDir = Path.Combine(Path.GetTempPath(), "weatherpoc-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            using (var logger = LoggingSetup.CreateConfiguration(baseDir).CreateLogger())
+            {
+                logger.Information("walking-skeleton startup line");
+            } // dispose flushes the sink and releases the file handle
 
-        marker.Marker().Should().Be("walking-skeleton");
+            var files = Directory.GetFiles(Path.Combine(baseDir, "logs"), "weatherpoc-*.log");
+            files.Should().HaveCount(1);
+            File.ReadAllText(files[0]).Should().Contain("walking-skeleton startup line");
+        }
+        finally
+        {
+            if (Directory.Exists(baseDir)) Directory.Delete(baseDir, recursive: true);
+        }
     }
 }
 ```
+
+> This is real on-disk I/O (a temp directory), not network — P4 (unit tests never touch the network) holds. The `using` block disposes the logger so the file sink flushes and releases its handle before the assertion reads the file back.
 
 > **Namespace note (confirm at first build):** `AwesomeAssertions` is a drop-in fork of FluentAssertions. The 9.x package exposes the `AwesomeAssertions` namespace used above. If your resolved version still ships the FluentAssertions-compatible namespace, the build will fail to find `Should()` — switch the using to `using FluentAssertions;`. Do not guess; let the first build tell you.
 
 - [ ] **Step 5: Run the test to verify it fails**
 
 Run: `dotnet test WeatherPoC.Tests/WeatherPoC.Tests.csproj`
-Expected: **compile failure** — `WeatherPoC.Core.SkeletonMarker` does not exist yet.
+Expected: **compile failure** — `WeatherPoC.Core.LoggingSetup` does not exist yet.
 
-- [ ] **Step 6: Write the minimal canary**
+- [ ] **Step 6: Write the minimal `LoggingSetup`**
 
-Create `WeatherPoC.Core/SkeletonMarker.cs`:
+Create `WeatherPoC.Core/LoggingSetup.cs`:
 
 ```csharp
+using Serilog;
+
 namespace WeatherPoC.Core;
 
 /// <summary>
-/// THROWAWAY SCAFFOLDING — Feature 1 walking skeleton.
-///
-/// This type exists for one reason only: to give the 100% coverage gate a
-/// coverable line in WeatherPoC.Core so the gate is demonstrably live (not
-/// vacuously satisfied) in the merged artefact. See spec
-/// docs/superpowers/specs/0001-blank-box-walking-skeleton.md §4.3.
-///
-/// DELETE THIS in Feature 2, when the first real module (the typed
-/// IWeatherService + the Current Conditions domain type) lands and the gate
-/// starts biting on real production code.
+/// Serilog rolling-file configuration for WeatherPoC, factored out of the app
+/// shell so the on-disk write contract (Seam 4) is testable with real I/O. The
+/// platform-bound per-user path (FileSystem.AppDataDirectory) is resolved by the
+/// app head and passed in as <paramref name="baseDirectory"/>, keeping
+/// WeatherPoC.Core free of MAUI/Windows dependencies (macOS-viable).
 /// </summary>
-public sealed class SkeletonMarker
+public static class LoggingSetup
 {
-    /// <summary>The constant marker proving the skeleton is wired end-to-end.</summary>
-    public const string Value = "walking-skeleton";
+    /// <summary>
+    /// Builds a Serilog configuration with a daily rolling file sink at
+    /// <c>{baseDirectory}/logs/weatherpoc-.log</c> (Serilog inserts the date,
+    /// yielding <c>weatherpoc-yyyyMMdd.log</c>), retaining 7 files, minimum
+    /// level Information.
+    /// </summary>
+    public static LoggerConfiguration CreateConfiguration(string baseDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(baseDirectory);
 
-    /// <summary>Returns the walking-skeleton marker.</summary>
-    public string Marker() => Value;
+        var logPath = Path.Combine(baseDirectory, "logs", "weatherpoc-.log");
+
+        return new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .WriteTo.File(
+                path: logPath,
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 7);
+    }
 }
 ```
+
+> Every line executes on the test's happy path (the `ThrowIfNull` call returns normally), so `LoggingSetup` reaches 100% line coverage — the gated surface has real, fully-covered production code.
 
 - [ ] **Step 7: Run the test to verify it passes**
 
@@ -187,7 +227,7 @@ Expected: **PASS** — 1 test passed.
 
 ```bash
 git add WeatherPoC.sln WeatherPoC.Core WeatherPoC.Tests
-git commit -m "feat: solution spine with Core canary and xUnit test"
+git commit -m "feat: solution spine with Core LoggingSetup and on-disk round-trip test"
 ```
 
 ---
@@ -234,7 +274,7 @@ Expected: PASS, and a file appears at `./TestResults/<guid>/coverage.cobertura.x
 
 Run: `cat ./TestResults/*/coverage.cobertura.xml`
 Expected:
-- The root `<coverage ...>` element carries `lines-covered` and `lines-valid` attributes, both **equal and greater than 0** (the canary is fully covered).
+- The root `<coverage ...>` element carries `lines-covered` and `lines-valid` attributes, both **equal and greater than 0** (`LoggingSetup` is fully covered).
 - The only `<package name="...">` is `WeatherPoC.Core`. (The app does not exist yet; this re-confirms once it does, in Task 5.)
 
 - [ ] **Step 4: Ignore coverage output in git**
@@ -262,9 +302,9 @@ git commit -m "feat: coverlet runsettings scoping coverage to WeatherPoC.Core"
 
 ## Task 3: The coverage gate + its boundary-crossing self-test (Seam 1)
 
-**Seam 1 — Coverage-gate contract (headline). Class: cross-process I/O (Cobertura XML file → gate script) + subprocess (the gate step). Internal.**
-**Contract (verbatim from spec §5 Seam 1):** After the test run, a Cobertura report exists with `lines-covered` and `lines-valid` for assembly `WeatherPoC.Core`. The gate **passes iff `lines-valid > 0 ∧ lines-covered == lines-valid`**; it fails otherwise (including the zero-coverable-lines case).
-**Proof (this Task):** the self-test runs the *real* gate script against *real* coverlet-produced Cobertura payloads and asserts: (a) canary present → exit 0 (green); (b) `covered < valid` → exit 1 ("coverage below 100%"); (c) `valid == 0` → exit 1 ("no coverable lines").
+**Seam 1 — Coverage-gate contract (headline). Class: cross-process I/O + data-format (Cobertura XML file → gate script). Internal.**
+**Contract (verbatim from spec §5 Seam 1):** After the test run and the ReportGenerator merge, a Cobertura report exists at the fixed path `CoverageReport/Cobertura.xml` whose root element carries `lines-covered` and `lines-valid` (non-negative integers; `lines-valid` absent or `0` denotes zero coverable lines) for the measured assembly `WeatherPoC.Core`. The gate **passes iff `lines-valid > 0 ∧ lines-covered == lines-valid`**; it fails otherwise (including the zero-coverable-lines case).
+**Proof (this Task):** the self-test runs the *real* gate script against three fixtures **captured from ReportGenerator's merged output** — the exact producer the gate reads in CI, not raw coverlet and not hand-typed — and asserts: (a) fully-covered → exit 0 (green); (b) `covered < valid` → exit 1 ("coverage below 100%"); (c) `valid == 0` → exit 1 ("no coverable lines").
 
 **Files:**
 - Create: `scripts/Check-Coverage.ps1`
@@ -311,37 +351,46 @@ Write-Host "PASS: coverage is 100% ($linesCovered/$linesValid)"
 exit 0
 ```
 
-- [ ] **Step 2: Capture the three REAL Cobertura fixtures from coverlet**
+- [ ] **Step 2: Capture the three REAL Cobertura fixtures from ReportGenerator's merged output**
 
-These payloads MUST come from the real writer (coverlet), not be hand-typed — per the seam taxonomy a self-written sample re-encodes the assumption it is meant to check. Generate each from an actual `dotnet test` run, then copy it into `ci/coverage-fixtures/`:
+These payloads MUST come from the real producer **the gate actually reads** — ReportGenerator's merged `Cobertura.xml`, not raw coverlet and not hand-typed. Per the seam taxonomy, a self-written sample (or one captured from a *different* writer than the gate consumes) re-encodes the assumption it is meant to check; capturing from ReportGenerator makes the self-test cross the exact `coverlet → ReportGenerator → gate` boundary CI uses. Install ReportGenerator once locally if needed:
 
-1. **green** — canary test present (the current state):
+```bash
+dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.4.4
+```
+
+Generate each fixture by running coverage, merging with ReportGenerator, then copying `CoverageReport/Cobertura.xml` into `ci/coverage-fixtures/`:
+
+1. **green** — `LoggingSetup` test present (the current state):
    ```bash
    dotnet test WeatherPoC.sln --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory ./TestResults
-   cp ./TestResults/*/coverage.cobertura.xml ci/coverage-fixtures/green.cobertura.xml
+   reportgenerator -reports:"./TestResults/**/coverage.cobertura.xml" -targetdir:./CoverageReport -reporttypes:"Cobertura"
+   cp ./CoverageReport/Cobertura.xml ci/coverage-fixtures/green.cobertura.xml
    ```
-   Confirm `green.cobertura.xml` has `lines-covered` == `lines-valid` and both > 0.
+   Confirm `green.cobertura.xml` has `lines-covered` == `lines-valid` and both > 0, and its only `<package name>` is `WeatherPoC.Core`.
 
-2. **below** — covered < valid. Temporarily add an *uncovered* method to the canary so coverlet reports a real shortfall, run coverage, capture, then revert:
+2. **below** — covered < valid. Temporarily add an *uncovered* method to `LoggingSetup` so coverlet reports a real shortfall, run coverage + report, capture, then revert:
    ```bash
-   # Temporarily append a second, untested method to SkeletonMarker.Marker's class body:
-   #     public string Unreached() => "not-covered";
+   # Temporarily append an untested method inside the LoggingSetup class body:
+   #     public static string Unreached() => "not-covered";
    dotnet test WeatherPoC.sln --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory ./TestResults
-   cp ./TestResults/*/coverage.cobertura.xml ci/coverage-fixtures/below.cobertura.xml
-   # Revert: remove the Unreached() method so the working tree is green again.
+   reportgenerator -reports:"./TestResults/**/coverage.cobertura.xml" -targetdir:./CoverageReport -reporttypes:"Cobertura"
+   cp ./CoverageReport/Cobertura.xml ci/coverage-fixtures/below.cobertura.xml
+   # Revert: remove Unreached() so the working tree is green again.
    ```
    Confirm `below.cobertura.xml` has `lines-covered` < `lines-valid`.
 
-3. **empty** — valid == 0. Temporarily empty Core (e.g. delete `SkeletonMarker.cs` and add a placeholder file with no coverable lines, or comment its body out), run coverage, capture, then revert:
+3. **empty** — valid == 0. Temporarily reduce `WeatherPoC.Core` to zero coverable lines (replace `LoggingSetup.cs` with an empty marker type) **and** comment out `LoggingSetupTests` (it references `LoggingSetup`, so it must not compile against the stub), run coverage + report, capture, then revert both:
    ```bash
-   # Temporarily reduce WeatherPoC.Core to zero coverable lines.
+   # Temporarily: LoggingSetup.cs -> an empty type (no coverable lines); comment out LoggingSetupTests.
    dotnet test WeatherPoC.sln --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory ./TestResults
-   cp ./TestResults/*/coverage.cobertura.xml ci/coverage-fixtures/empty.cobertura.xml
-   # Revert: restore SkeletonMarker.cs so the working tree is green again.
+   reportgenerator -reports:"./TestResults/**/coverage.cobertura.xml" -targetdir:./CoverageReport -reporttypes:"Cobertura"
+   cp ./CoverageReport/Cobertura.xml ci/coverage-fixtures/empty.cobertura.xml
+   # Revert: restore LoggingSetup.cs and LoggingSetupTests so the working tree is green again.
    ```
    Confirm `empty.cobertura.xml` has `lines-valid` == 0 (the root attribute is `0` or absent).
 
-After capturing all three, run `dotnet test WeatherPoC.sln` once more to confirm the working tree is back to green (the canary present and passing).
+After capturing all three, run `dotnet test WeatherPoC.sln` once more to confirm the working tree is back to green (`LoggingSetup` present and its test passing).
 
 - [ ] **Step 3: Write the self-test runner**
 
@@ -356,7 +405,7 @@ $gate     = Join-Path $here 'Check-Coverage.ps1'
 $fixtures = Join-Path (Split-Path -Parent $here) 'ci/coverage-fixtures'
 
 $cases = @(
-    @{ File = 'green.cobertura.xml'; Expected = 0; Name = 'a: canary present -> green' },
+    @{ File = 'green.cobertura.xml'; Expected = 0; Name = 'a: fully covered -> green' },
     @{ File = 'below.cobertura.xml'; Expected = 1; Name = 'b: covered < valid -> red (coverage below 100%)' },
     @{ File = 'empty.cobertura.xml'; Expected = 1; Name = 'c: valid == 0 -> red (no coverable lines)' }
 )
@@ -399,11 +448,12 @@ git commit -m "feat: coverage threshold gate with Seam 1 boundary-crossing self-
 
 ---
 
-## Task 4: The MAUI app head — empty box, DI, MVVM scaffold, Serilog (Seam 3 build + composition)
+## Task 4: The MAUI app head — empty box, DI, MVVM scaffold, Serilog bootstrap (Seam 3 build + composition)
 
-**Seam 3 — App build + host composition + launch. Class: subprocess (`dotnet build -c Release`) + host-OS/runtime (Windows MAUI head). External (the MAUI/Windows toolchain).**
-**Contract (verbatim from spec §5 Seam 3):** The solution compiles on CI; the host builds without DI resolution exceptions; the app process starts, renders `MainPage`, and emits a startup log line via the injected logger.
-**Proof:** CI build step green (compilation — automated, wired in Task 5); launch-to-empty-box + log-file-written verified manually (Task 6). Automated UI-launch testing is out of scope (spec §3).
+**Seam 3 — App build + host composition + launch. Class: subprocess (`dotnet build -c Release`) + host-OS/runtime (Windows MAUI head). External — the .NET 10 SDK + MAUI workload toolchain.**
+**Contract (verbatim from spec §5 Seam 3):** The solution compiles on CI for the Windows head `net10.0-windows10.0.19041.0` (minimum OS `10.0.17763.0`); the host builds without DI resolution exceptions; the app process starts and renders `MainPage`. *(The Serilog write to the rolling file is Seam 4 / Task 1; this seam covers build + composition + launch only.)*
+**(e) authority:** the .NET 10 / MAUI Windows target is grounded against the live Microsoft source per the "Seam 3 toolchain authority" note near the top of this Plan (the *Supported platforms* doc + the *dotnet/maui Release-Versions* wiki), with the CI-resolved toolchain (`actions/setup-dotnet@v4` `10.0.x` + `dotnet workload install maui` + `dotnet restore`) as the binding check — not model memory.
+**Proof:** CI build step green (compilation against the real external toolchain — automated, wired in Task 5); launch-to-empty-box + DI-resolves-`ILogger<MainPage>` verified manually (Task 6). The on-disk write is proven automatically by Seam 4 (Task 1). Automated UI-launch testing is out of scope (spec §3).
 
 All types in this Task carry `[ExcludeFromCodeCoverage]` (belt-and-braces with the `Include` filter from Task 2 and the test project not referencing the app — spec §4.2, Seam 2).
 
@@ -453,7 +503,6 @@ In `WeatherPoC/WeatherPoC.csproj`, replace the template's `<TargetFrameworks>` l
     <PackageReference Include="Serilog" Version="4.2.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
-    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -461,7 +510,7 @@ In `WeatherPoC/WeatherPoC.csproj`, replace the template's `<TargetFrameworks>` l
   </ItemGroup>
 ```
 
-> `WindowsPackageType=None` builds an unpackaged Win32 app so it launches with `dotnet run` (Task 6) without MSIX packaging — release/installer mechanics stay deferred (spec §3, R2). `CommunityToolkit.Mvvm` is the MVVM scaffold the spec mandates (§4.2); it carries no behaviour yet and is used in earnest from Feature 2. `CommunityToolkit.Maui` is **not** added here — YAGNI for the empty box (no behaviors/converters/popups in scope).
+> `WindowsPackageType=None` builds an unpackaged Win32 app so it launches with `dotnet run` (Task 6) without MSIX packaging — release/installer mechanics stay deferred (spec §3, R2). `CommunityToolkit.Mvvm` is the MVVM scaffold the spec mandates (§4.2); it carries no behaviour yet and is used in earnest from Feature 2. `CommunityToolkit.Maui` is **not** added here — YAGNI for the empty box (no behaviors/converters/popups in scope). `Serilog.Sinks.File` is **not** referenced here either — the rolling-file configuration lives in `WeatherPoC.Core`'s `LoggingSetup` (Seam 4) and reaches the app transitively via the Core reference; the app head adds only the `DEBUG`-only Debug sink.
 
 - [ ] **Step 3: Write the DI composition root + Serilog bootstrap**
 
@@ -472,6 +521,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Extensions.Logging;
+using WeatherPoC.Core;
 
 namespace WeatherPoC;
 
@@ -480,14 +530,9 @@ public static class MauiProgram
 {
     public static MauiApp CreateMauiApp()
     {
-        var logPath = Path.Combine(FileSystem.AppDataDirectory, "logs", "weatherpoc-.log");
-
-        var loggerConfiguration = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .WriteTo.File(
-                path: logPath,
-                rollingInterval: RollingInterval.Day,
-                retainedFileCountLimit: 7);
+        // The rolling-file configuration (path + sink) is the testable Seam 4 contract in
+        // WeatherPoC.Core; the app head passes the platform-bound per-user path into it.
+        var loggerConfiguration = LoggingSetup.CreateConfiguration(FileSystem.AppDataDirectory);
 
 #if DEBUG
         loggerConfiguration = loggerConfiguration.WriteTo.Debug();
@@ -513,7 +558,7 @@ public static class MauiProgram
 }
 ```
 
-> The Serilog rolling file sits under `FileSystem.AppDataDirectory` (per-user app-data) and the Debug sink is `DEBUG`-only — local-only telemetry, no data leaves the machine (PRD stories 38–39; Technical-Context Instrumentation).
+> The rolling file sits under `FileSystem.AppDataDirectory` (per-user app-data) — the path and file sink are configured by `LoggingSetup` in Core (Seam 4); the app head only supplies the base directory and adds the `DEBUG`-only Debug sink. Local-only telemetry, no data leaves the machine (PRD stories 38–39; Technical-Context Instrumentation).
 
 - [ ] **Step 4: Write the application bootstrap**
 
@@ -572,7 +617,7 @@ public partial class MainPage : ContentPage
 }
 ```
 
-> This single startup line, written through the **injected** `ILogger<MainPage>`, is the Seam 3 proof that the logging provider resolves and writes — verified manually in Task 6.
+> This single startup line, written through the **injected** `ILogger<MainPage>`, exercises the Seam 3 composition — the logging provider resolves and the injected logger flows to Serilog — verified manually in Task 6. The on-disk *write* contract itself is proven automatically by Seam 4 (Task 1), independent of the UI.
 
 - [ ] **Step 6: Build the whole solution in Release (the automated half of Seam 3)**
 
@@ -593,7 +638,7 @@ dotnet test WeatherPoC.sln --collect:"XPlat Code Coverage" --settings coverage.r
 cat ./TestResults/*/coverage.cobertura.xml
 ```
 
-Expected: the report still lists **only** `WeatherPoC.Core`. The newly-added app shell (full of uncovered lines) contributes nothing — proving the `[ExcludeFromCodeCoverage]` + `Include` filter + test-project-doesn't-reference-app combination holds.
+Expected: the report still lists **only** `WeatherPoC.Core` (now containing `LoggingSetup`, fully covered). The newly-added app shell (full of uncovered lines) contributes nothing — proving the `[ExcludeFromCodeCoverage]` + `Include` filter + test-project-doesn't-reference-app combination holds.
 
 - [ ] **Step 8: Commit**
 
@@ -731,7 +776,7 @@ jobs:
         run: ./scripts/Test-CoverageGate.ps1
 ```
 
-> ReportGenerator's merged `Cobertura.xml` carries the same root `lines-covered`/`lines-valid` attributes and `<package>` entries the gate and scope scripts read. The gate runs against this deterministic path rather than the globbed raw coverlet output.
+> ReportGenerator's merged `Cobertura.xml` carries the same root `lines-covered`/`lines-valid` attributes and `<package>` entries the gate and scope scripts read. The gate runs against this deterministic path rather than the globbed raw coverlet output. This coverlet → ReportGenerator schema-equivalence is **not merely asserted**: the Seam 1 self-test fixtures (Task 3 Step 2) are captured from this same ReportGenerator output, so the gate's behaviour against the exact artefact it reads in CI is proven by the self-test, not assumed in prose.
 
 - [ ] **Step 4: Guard the dependency direction (acceptance criterion 1)**
 
@@ -756,14 +801,14 @@ Push the working branch and open a PR targeting `main`. On the PR, confirm:
 - the **Build (Release)** step is green (Seam 3 compilation proof, Goal 1);
 - the **coverage-report** artifact is published (Goal 4 / acceptance 4);
 - the **scope assertion** is green (Seam 2 / acceptance 6);
-- the **threshold gate** is green with the canary present (Seam 1 proof a / acceptance 5);
+- the **threshold gate** is green with `LoggingSetup` fully covered (Seam 1 proof a / acceptance 5);
 - the **self-test** is green, reproducing proofs a/b/c deterministically (Seam 1 b & c / acceptance 5).
 
 ---
 
 ## Task 6: Manual launch verification (Seam 3 launch proof)
 
-Automated UI-launch testing is out of scope (spec §3); the launch-to-empty-box and log-file-written halves of Seam 3 are verified **manually** on Windows and evidenced on the PR.
+Automated UI-launch testing is out of scope (spec §3); the launch-to-empty-box and DI-resolution halves of Seam 3 are verified **manually** on Windows and evidenced on the PR. *(The Serilog on-disk write contract is already proven automatically by Seam 4 / Task 1; the manual run below additionally confirms it end-to-end at the real per-user path as a host-level sanity check, but is not the primary proof of the write.)*
 
 **Files:** none (verification + evidence only).
 
@@ -785,7 +830,7 @@ The log lives under `FileSystem.AppDataDirectory/logs/weatherpoc-<date>.log`. Fo
 WeatherPoC started: walking skeleton MainPage composed and rendered.
 ```
 
-If the folder is unclear, the path is logged at startup under the Debug sink in a `DEBUG` build (run from an IDE / `-c Debug`). Capture the relevant log lines.
+If the folder is unclear, the path is logged at startup under the Debug sink in a `DEBUG` build (run from an IDE / `-c Debug`). Capture the relevant log lines. This end-to-end check complements (does not replace) the automated Seam 4 round-trip test, which proves the write contract deterministically in CI.
 
 - [ ] **Step 3: Attach the evidence to the PR**
 
@@ -801,25 +846,38 @@ Post the screenshot of the empty box and the log-file snippet (showing the start
 |---|---|
 | §4.1 three projects, stated TFMs, reference directions; Tests ⇏ app | Task 1 (Core/Tests), Task 4 (app), Task 5 Step 4 guard |
 | §4.2 DI root + MVVM scaffold + Serilog bootstrap, all coverage-excluded | Task 4 Steps 3–5 (`[ExcludeFromCodeCoverage]` on every shell type) |
-| §4.2 startup line via injected `ILogger` | Task 4 Step 5; Task 6 Step 2 |
-| §4.3 throwaway canary + 100% test, deleted in Feature 2 | Task 1 Steps 4–7 (doc-comment flags the Feature-2 deletion) |
+| §4.2 startup line via injected `ILogger` (Seam 3 composition, manual) | Task 4 Step 5; Task 6 Step 2 |
+| §4.3 `LoggingSetup` logging-config module + 100% on-disk round-trip test (no canary) | Task 1 Steps 4–7 |
 | §4.4 CI: checkout→setup→workload→restore→build→test→ReportGenerator→gate | Task 5 Step 3 |
-| §4.4 gate fails on `lines-valid==0` and `lines-covered<lines-valid` | Task 3 Step 1 (script), Task 3 Step 3–4 (self-test) |
+| §4.4 gate fails on `lines-valid==0` and `lines-covered<lines-valid` | Task 3 Step 1 (script), Task 3 Steps 2–4 (self-test against ReportGenerator-merged fixtures) |
 | §4.4 runsettings: cobertura, `Include [WeatherPoC.Core]*`, `ExcludeByAttribute` | Task 2 Step 1 |
-| Goals 1–5 | G1: Task 4 Step 6 / Task 6; G2: Task 4 Steps 3–5; G3: Task 1 / Task 5; G4: Task 3 + Task 5; G5: Task 5 Steps 1–3 |
-| Acceptance 1–7 | 1: T1/T4/T5.4; 2: T5.6; 3: T6; 4: T5.6; 5: T3/T5.6; 6: T5.2/T5.6; 7: T1 Step 2 (`net10.0`, no platform deps) |
+| Goals 1–5 | G1: Task 4 Step 6 / Task 6; G2: Task 4 Steps 3–5 + Task 1 (Seam 4 write proof); G3: Task 1 / Task 5; G4: Task 3 + Task 5; G5: Task 5 Steps 1–3 |
+| Acceptance 1–8 | 1: T1/T4/T5.4; 2: T5.6; 3: T6 (launch + DI); 4: T1/T5.6 (`LoggingSetup` test green); 5: T3/T5.6; 6: T5.2/T5.6; 7: T1 Step 2 (`net10.0`, Serilog cross-platform only); 8: T1 (Seam 4 round-trip) |
 | Out-of-scope respected | No `IWeatherService`, no domain types, no behavioural VMs, no Location, no signing/packaging (`WindowsPackageType=None`, build+test+coverage only), Windows-only TFM |
 
-**2. Placeholder scan** — no `TBD`/`TODO`/"add appropriate…"; every code and script step is complete; package versions are concrete pins with a single confirm-at-restore note (spec §9 defers exact versions by design); the one genuine external-fact uncertainty (AwesomeAssertions namespace) is called out with the exact fallback rather than guessed.
+**2. Placeholder scan** — no `TBD`/`TODO`/"add appropriate…"; every code and script step is complete; package versions are concrete pins with a single confirm-at-restore note (spec §9 defers exact versions by design); the one genuine external-fact uncertainty (AwesomeAssertions namespace) is called out with the exact fallback rather than guessed; the .NET 10 / MAUI Windows toolchain facts are grounded against cited Microsoft Learn sources (Seam 3 (e)), not memory.
 
-**3. Type consistency** — `SkeletonMarker` / `Marker()` / `Value` used identically in Task 1 Steps 4 & 6. `MainPage`, `App`, `MauiProgram`, `ILogger<MainPage>`, `CreateMauiApp`, `CreateWindow` consistent across Task 4. Script names (`Check-Coverage.ps1`, `Check-CoverageScope.ps1`, `Test-CoverageGate.ps1`) and fixture names (`green/below/empty.cobertura.xml`) match between Tasks 3 and 5 and the CI workflow.
+**3. Type consistency** — `LoggingSetup` / `CreateConfiguration(baseDirectory)` used identically in Task 1 Steps 4 & 6, in `MauiProgram` (Task 4 Step 3), the File Structure table, and spec §4.3 / Seam 4. `MainPage`, `App`, `MauiProgram`, `ILogger<MainPage>`, `CreateMauiApp`, `CreateWindow` consistent across Task 4. Script names (`Check-Coverage.ps1`, `Check-CoverageScope.ps1`, `Test-CoverageGate.ps1`) and fixture names (`green/below/empty.cobertura.xml`) match between Tasks 3 and 5 and the CI workflow. No `SkeletonMarker`/canary references remain.
 
 **4. Seam coverage**
 
 | Seam (spec §5) | Covering Task naming the contract | Boundary-crossing proof (step) |
 |---|---|---|
-| **Seam 1** — coverage-gate contract | Task 3 (contract quoted verbatim) | Task 3 Steps 2–4: `Test-CoverageGate.ps1` runs the real gate against real coverlet fixtures (proofs a/b/c); wired into CI in Task 5 Step 3 |
+| **Seam 1** — coverage-gate contract | Task 3 (contract quoted verbatim) | Task 3 Steps 2–4: `Test-CoverageGate.ps1` runs the real gate against **ReportGenerator-merged** fixtures (the exact artefact CI reads) — proofs a/b/c; wired into CI in Task 5 Step 3 |
 | **Seam 2** — coverage-scope boundary | Task 5 (contract quoted verbatim) | Task 5 Steps 1–2: `Check-CoverageScope.ps1` parses the real produced report, asserts only `WeatherPoC.Core`; reinforced by Task 4 Step 7 |
-| **Seam 3** — app build + composition + launch | Task 4 (contract quoted verbatim) | Automated: CI `Build (Release)` green (Task 5 Step 3 / Step 6). Manual (per spec §3): empty-box + startup-log evidence (Task 6) |
+| **Seam 3** — app build + composition + launch (external toolchain, (e) grounded) | Task 4 (contract + (e) authority quoted) | Automated: CI `Build (Release)` green against the real SDK/workload (Task 5). Manual (per spec §3): empty-box + DI-resolves-`ILogger<MainPage>` (Task 6) |
+| **Seam 4** — Serilog logging → rolling on-disk file | Task 1 (contract quoted verbatim) | Task 1 Steps 4–7: automated on-disk round-trip test — real disk I/O against a temp dir, asserts the dated file contains the line |
 
 Every seam maps to a Task that quotes its contract and a step that writes its proof. No gaps.
+
+**5. Fix-pass closure map** *(answers the failed `/feature-doc-gauntlet` run recorded in the Spec sign-off, 2026-06-16; all four findings were raised by `check-seam-cynicism`)*
+
+| Finding | Root cause | Fix (decision) | Closure evidence |
+|---|---|---|---|
+| 1. Coverage-gate proof crosses the wrong boundary | Fixtures captured from raw coverlet, but the gate reads ReportGenerator's merged report | Capture fixtures from ReportGenerator's merged output (RC1) | Task 3 Step 2 + Spec §4.4 / Seam 1: fixtures = `CoverageReport/Cobertura.xml`; no "raw coverlet" fixture remains |
+| 2. Seam 3 external but no (e) authority | Toolchain grounded on model memory | Added (e) authority citing MS Learn *Supported platforms* + *dotnet/maui Release-Versions* + the CI-resolved toolchain | Spec §5 Seam 3 (e); Plan "Seam 3 toolchain authority" note + Task 4 contract block |
+| 3. Missing Serilog on-disk seam | Seam 3 overloaded; no inventory row for the on-disk write | Split out a new **Seam 4** (logging → on-disk file) with a falsifiable (c) | Spec §5 Seam 4; Plan Task 1 names it verbatim |
+| 4. Logger-writes contract has no real (d) | Manual-only proof of an automatable, non-UI write | Automated on-disk round-trip test in `LoggingSetup` + `LoggingSetupTests` (RC3) | Plan Task 1 Steps 4–7; Spec §4.3, acceptance 8 |
+| obs. Orphaned seam-taxonomy path | Sibling-repo path unresolvable from the project root | Annotated reference-only / sibling repo | Plan Context references block |
+
+All four findings closed and the on-path observation swept; the Spec and Plan were edited jointly. Ready for a **full** `/feature-doc-gauntlet` re-run (all three leaves, fresh).
