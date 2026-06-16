@@ -216,3 +216,23 @@ proof — this is the payload of the tracer bullet.
   that it is a pure, fully-coverable type with a 100%-covering test, removed in Feature 2.
 - **Windows SDK TFM revision** (`net10.0-windows10.0.19041.0` vs a later revision) — confirmed against
   the installed workload at implementation time.
+
+## Feature-doc-gauntlet sign-off
+
+- **Result:** fail
+- **Date:** 2026-06-16
+- **Summary:** Seam review (check-seam-cynicism) raised four assumed/unproven seams; the ADR/principle (check-doc-adr-consistency) and cross-artefact (check-artefact-consistency) leaves found no blockers.
+- **Leaves:** check-seam-cynicism, check-doc-adr-consistency, check-artefact-consistency
+- **Next step:** Do **not** proceed to `enate-to-stories`. Route the Spec and Plan to `/fix-feature-docs` to resolve the open findings, then re-run `/feature-doc-gauntlet` in full.
+
+### Open findings (gating)
+
+1. **[check-seam-cynicism] Coverage-gate proof crosses the wrong boundary.** The Seam 1/2 fixtures are captured from the *raw coverlet* writer (`cp ./TestResults/*/coverage.cobertura.xml`, Plan Task 3 Step 2), but in CI both `Check-Coverage.ps1` and `Check-CoverageScope.ps1` read ReportGenerator's *merged* `CoverageReport/Cobertura.xml` (Plan Task 5 Step 3 / `ci.yml` lines 723, 727). The coverlet → ReportGenerator → gate-reader data-format seam's equivalence is asserted only in prose (Plan line 734); no fixture is captured from ReportGenerator's output, so the (d) proof never crosses the production boundary.
+2. **[check-seam-cynicism] Seam 3 declared external but carries no (e) authority.** The .NET 10 / MAUI Windows toolchain is third-party on first contact (Spec §1 names it the scariest unknown), yet Spec §5 Seam 3 has no (e) authority field and the versions/TFM are grounded on model memory ("current as of 2026-06", Plan line 23) with confirm-at-restore as fallback rather than a cited live source.
+3. **[check-seam-cynicism] Missing seam — Serilog rolling-log on-disk + OS path-resolution boundary.** The rolling file at `FileSystem.AppDataDirectory/logs/weatherpoc-<date>.log` (`rollingInterval: Day`, `retainedFileCountLimit: 7`, Plan Task 4 Step 3) crosses a persistent-on-disk-state and host-OS path-resolution boundary but has no row in the Spec §5 Seam inventory; the path is an assumed contract (Task 6 Step 2 itself hedges "If the folder is unclear…").
+4. **[check-seam-cynicism] Seam 3 (c) injected-logger-writes contract has no automated falsifiable proof.** "Emits a startup log line via the injected logger" (Spec §5 Seam 3) covers the `ILogger<MainPage>` → Serilog provider DI/logging boundary, but its only (d) is manual screenshot/log inspection (Plan Task 6); no automated boundary-crossing test goes red when that contract drifts.
+
+### Non-gating observations (for awareness; do not block)
+
+- **[check-artefact-consistency] Orphaned reference:** the Plan's Context-references block cites the seam taxonomy as `enate-claude-skills/docs/seam-taxonomy.md`, which does not resolve from the WeatherPoC project root — the file lives in a sibling repo (`/home/user/enate-claude-skills/docs/seam-taxonomy.md`). Make the reference absolute or note it is in the skills repo so an AFK Developer Agent loading Context references doesn't hit a missing file.
+- **[check-doc-adr-consistency] Principle 5 wording tension** (Spec §7 R1): Technical-Context Overriding Principle 5 states "100%" flatly while also carving out the XAML View / DI root / Serilog bootstrap as excluded. Correctly implemented as the PRD/Roadmap describe and deferred to a tracked human-owned prescriptive edit — surfaced for human eyes, not a breach.
