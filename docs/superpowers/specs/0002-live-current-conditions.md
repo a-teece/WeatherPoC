@@ -3,6 +3,7 @@
 **Feature:** 2 (Roadmap.md) — first real domain code
 **Status:** Draft (ready for `/writing-plans`)
 **Date:** 2026-06-16
+**Amended:** 2026-06-16 by the Feature 3 brainstorm — reshaped to the combined `GetWeatherAsync` / `WeatherSnapshot` surface, a **shell ViewModel** owning the fetch/timer/state, and `timezone=auto` on the request, so Feature 3 (Daily Forecast) is purely additive. See §7 **R5** and `docs/superpowers/specs/0003-daily-forecast.md` §7 R1.
 **Depends on:** Feature 1 — the MAUI app shell, DI/MVVM scaffold, Serilog wiring, and the build + test + 100%-coverage pipeline.
 **Downstream:** Feature 3 (Daily Forecast) reuses the typed `IWeatherService` and the WMO-code → icon + label mapping this Feature lands; Feature 4 (Unit Preferences) retrofits the formatter onto the Weather Variables shown here; Feature 5 (Place Search + Saved Location) replaces this Feature's hard-coded Location with the resolved Active Location.
 
@@ -43,19 +44,23 @@ Feature 1's three-project structure and coverage rules carry over unchanged. F2 
 
 | Lands in | Project | Coverage | What |
 |---|---|---|---|
-| `WeatherPoC.Core` (`net10.0`, gated) | the typed `IWeatherService` + its implementation, the `CurrentConditions` domain type, the Open-Meteo response DTOs + JSON→domain mapper, the `(weather_code, is_day) → (category, label, iconKey)` mapping, and the **Current Conditions ViewModel** | **100% gated** | the real domain + presentation logic |
+| `WeatherPoC.Core` (`net10.0`, gated) | the typed `IWeatherService` + its implementation, the `CurrentConditions` domain type, the Open-Meteo response DTOs + JSON→domain mapper, the `(weather_code, is_day) → (category, label, iconKey)` mapping, the **shell ViewModel** (owning the fetch/timer/state machine, per §7 R5), and the presentation-only **Current Conditions ViewModel** it feeds | **100% gated** | the real domain + presentation logic |
 | `WeatherPoC` (app head, excluded) | the XAML View (bindings + glyph rendering), the DI registration of the typed `HttpClient` + `Microsoft.Extensions.Http.Resilience` policies, and the hard-coded `Location` constant | `[ExcludeFromCodeCoverage]` (untestable UI/wiring) | thin binding + composition |
 | `WeatherPoC.Tests` (`net10.0`, not measured) | unit tests with a **faked HTTP layer** | n/a | offline, deterministic |
 | `WeatherPoC.EndToEnd` *(new, not measured, not in the gate)* | one deliberate live-network test against real Open-Meteo | n/a | proves Seam 1's live wire |
 
-CommunityToolkit.Mvvm is cross-platform, so the ViewModel lives in `WeatherPoC.Core` and is **gated** (PRD Testing Decisions explicitly unit-test ViewModels). The XAML View stays in the excluded app head. The `IWeatherService` implementation does real HTTP, but is unit-tested **offline** by faking at the `HttpMessageHandler` boundary (canned JSON in, domain type out) — so it is 100%-coverable without touching the network (Overriding Principle 4), while the real wire is proven separately by the end-to-end test (Seam 1).
+CommunityToolkit.Mvvm is cross-platform, so the ViewModels (shell + Current Conditions) live in `WeatherPoC.Core` and are **gated** (PRD Testing Decisions explicitly unit-test ViewModels). The XAML View stays in the excluded app head. The `IWeatherService` implementation does real HTTP, but is unit-tested **offline** by faking at the `HttpMessageHandler` boundary (canned JSON in, domain type out) — so it is 100%-coverable without touching the network (Overriding Principle 4), while the real wire is proven separately by the end-to-end test (Seam 1).
 
 ### 4.2 The typed weather client (`IWeatherService`)
 
-The single typed client for **all** Open-Meteo access (Overriding Principle 3). Its F2 surface:
+The single typed client for **all** Open-Meteo access (Overriding Principle 3). Its surface is **combined-ready** (per §7 R5 — Feature 3 adds the daily block without changing the signature):
 
 ```
-Task<Result<CurrentConditions>> GetCurrentConditionsAsync(Location location, CancellationToken ct)
+Task<Result<WeatherSnapshot>> GetWeatherAsync(Location location, CancellationToken ct)
+```
+
+```
+WeatherSnapshot { CurrentConditions Current; /* DailyForecast Daily added in Feature 3 */ }
 ```
 
 - Built on an `IHttpClientFactory` typed client with `Microsoft.Extensions.Http.Resilience` (retry, timeout, circuit-breaker) configured in the app head.
@@ -64,7 +69,7 @@ Task<Result<CurrentConditions>> GetCurrentConditionsAsync(Location location, Can
 - After resilience is exhausted, transport/HTTP/deserialization failures are returned as a **friendly domain-level failure** (a result type, not a thrown exception bubbling to the UI) carrying a user-safe message; the raw detail goes to the log only (PRD story 36; Technical-Context User Feedback).
 - **Every call is logged** — endpoint, response status, latency — to the Serilog rolling file (Seam 4).
 
-*(The exact `Result`/failure representation — discriminated result type vs nullable + error — is a Plan/TDD detail; the contract is "success → `CurrentConditions`, failure → a user-safe message, never an unhandled exception to the UI".)*
+*(The exact `Result`/failure representation — discriminated result type vs nullable + error — is a Plan/TDD detail; the contract is "success → `WeatherSnapshot` (with `Current` populated), failure → a user-safe message, never an unhandled exception to the UI".)*
 
 ### 4.3 Fixed display units (no formatter)
 
@@ -82,6 +87,8 @@ The fixed units chosen for F2 (foreshadowing the eventual UK locale default of �
 
 *(These specific fixed units are a brainstorming outcome, listed here so the Plan has a concrete target; they are display-only and changing them later is an F4 concern, never a re-fetch.)*
 
+The same request also sets **`timezone=auto`** (added per §7 R5): Open-Meteo then timestamps `current.time` in the Location's local timezone — making the "Updated HH:MM" of §4.5 a **local** time — and buckets the day boundaries Feature 3's Daily Forecast depends on. It is not a unit param; it rides the same GET.
+
 ### 4.4 The Weather Condition mapping (pure, in Core)
 
 A pure function `(weather_code, is_day) → (category, label, iconKey)`:
@@ -94,7 +101,7 @@ A pure function `(weather_code, is_day) → (category, label, iconKey)`:
 
 ### 4.5 The view and its state machine (ViewModel)
 
-The Current Conditions ViewModel owns the fetch/refresh lifecycle and exposes one of four states to the bound XAML View:
+Per §7 R5, the fetch/refresh lifecycle lives in a **shell ViewModel** (introduced here so Feature 3 can hang a second display section off it); the **Current Conditions ViewModel** is the presentation-only section it feeds. The shell ViewModel owns the lifecycle and exposes one of four states to the bound XAML View:
 
 | State | Entered when | View renders |
 |---|---|---|
@@ -121,9 +128,9 @@ The cross-module contracts this Feature relies on. Each carries a falsifiable co
 ### Seam 1 — Open-Meteo `current` JSON → domain `CurrentConditions` *(headline)*
 
 - **Class:** cross-process I/O + data-format (HTTP JSON → domain type). **External** — Open-Meteo is third-party and not under our control; its response shape can drift.
-- **Boundary:** `IWeatherService.GetCurrentConditionsAsync(Location)` → HTTP GET to the Open-Meteo Forecast endpoint with a `current=` field set and the unit params of §4.3 → `System.Text.Json` deserialization → mapping to `CurrentConditions`.
-- **Contract:** Given a Location (latitude, longitude), the request asks for `current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation,weather_code,is_day` plus the §4.3 unit params. The response's `current` object maps field-by-field to `CurrentConditions`; `weather_code` (int) + `is_day` (0/1) resolve via **Seam 2**; the `current.time` field becomes the reading's observation time. A transport error, non-success status, or undeserializable body maps to the **friendly domain-level failure** of §4.2 — never an unhandled exception to the UI. No API key is sent (Open-Meteo needs none — Overriding Principle 1).
-- **(e) authority:** grounded against the **live Open-Meteo Forecast API docs** (`open-meteo.com/en/docs`) — the `current` parameter names, the unit query params (`temperature_unit`/`wind_speed_unit`/`precipitation_unit`), the WMO `weather_code` table, and `is_day` semantics — **not** model memory. There is no wire auth to pin. The *binding* authority is the live API itself, confirmed by Seam 1's end-to-end proof, so field names/shape are verified against the real service at test time.
+- **Boundary:** `IWeatherService.GetWeatherAsync(Location)` → HTTP GET to the Open-Meteo Forecast endpoint with a `current=` field set, the unit params of §4.3, and `timezone=auto` → `System.Text.Json` deserialization → mapping to `WeatherSnapshot.Current` (a `CurrentConditions`).
+- **Contract:** Given a Location (latitude, longitude), the request asks for `current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation,weather_code,is_day` plus the §4.3 unit params and `timezone=auto`. The response's `current` object maps field-by-field to `CurrentConditions` (carried as `WeatherSnapshot.Current`); `weather_code` (int) + `is_day` (0/1) resolve via **Seam 2**; the `current.time` field (now in the Location's local timezone, per `timezone=auto`) becomes the reading's observation time. A transport error, non-success status, or undeserializable body maps to the **friendly domain-level failure** of §4.2 — never an unhandled exception to the UI. No API key is sent (Open-Meteo needs none — Overriding Principle 1).
+- **(e) authority:** grounded against the **live Open-Meteo Forecast API docs** (`open-meteo.com/en/docs`) — the `current` parameter names, the unit query params (`temperature_unit`/`wind_speed_unit`/`precipitation_unit`), the `timezone=auto` timestamp/day-bucketing semantics, the WMO `weather_code` table, and `is_day` semantics — **not** model memory. There is no wire auth to pin. The *binding* authority is the live API itself, confirmed by Seam 1's end-to-end proof, so field names/shape are verified against the real service at test time.
 - **Proof (falsifiable):**
   - **Unit (offline, deterministic):** representative `current` JSON fixtures (clear-day, clear-night, rain, snow, an unknown code, and a missing-field case) are fed through a **faked `HttpMessageHandler`** and asserted to map to the expected `CurrentConditions` (Overriding Principle 4). Transport/timeout/non-200/garbage-body fixtures assert the friendly-failure path.
   - **End-to-end (deliberate, live network, outside the gate):** one test in `WeatherPoC.EndToEnd` hits the **real** Open-Meteo endpoint for the hard-coded Location and asserts the response still deserializes into `CurrentConditions` with all requested fields present — this is what catches real wire drift, and is excluded from the deterministic unit/coverage gate so CI stays offline and stable.
@@ -138,7 +145,7 @@ The cross-module contracts this Feature relies on. Each carries a falsifiable co
 ### Seam 3 — ViewModel state machine + auto-refresh lifecycle
 
 - **Class:** in-process (ViewModel ↔ View binding + a timer). **Internal.** Concurrency-/lifetime-sensitive (Overriding Principle 2).
-- **Boundary:** the Current Conditions ViewModel: activation → initial fetch + start 15-min timer; manual-refresh command; tick; deactivation → cancel timer + in-flight fetch. States and transitions per §4.5.
+- **Boundary:** the **shell** ViewModel (per §7 R5): activation → initial fetch + start 15-min timer; manual-refresh command; tick; deactivation → cancel timer + in-flight fetch. States and transitions per §4.5.
 - **Contract:** on activation exactly one initial fetch runs and the timer starts; success → **Loaded** (timestamp = now), failure → **Load failed**. While Loaded, a failed refresh (manual or tick) → **Couldn't update** with the **timestamp unchanged** (last success); a successful refresh → **Loaded** (timestamp advanced). A manual refresh **resets** the countdown. Deactivation **cancels** the timer and the in-flight fetch — no further fetches occur. **At most one fetch is in flight** at any time. Nothing blocks the UI thread.
 - **Proof:** behavioural unit tests over the ViewModel with a **faked `IWeatherService`** and an **abstracted time source** (`TimeProvider`), so ticks are driven deterministically with **no real waiting**: initial-success→Loaded; initial-failure→LoadFailed (+Retry re-fetches); Loaded→tick-failure→CouldntUpdate (timestamp pinned to last success); manual-refresh resets the timer; deactivate→timer cancelled (advancing virtual time fires no further fetch); overlapping triggers never produce two concurrent fetches.
 
@@ -166,6 +173,7 @@ The cross-module contracts this Feature relies on. Each carries a falsifiable co
 - **R2 — Fixed units vs the Unit Preferences machinery.** Roadmap F2 puts Unit Preferences out of scope ("a single fixed unit per measurement, with no per-measurement choice, CLDR defaults, or formatter yet"); ADR 0002 mandates CLDR-derived per-measurement defaults + a UnitsNet formatter. **No contradiction:** F2 requests fixed units directly from Open-Meteo and carries no formatter at all (§4.3); ADR 0002's resolver + formatter land in **Feature 4** and retrofit onto these same Weather Variables. F2 introduces **no** `RegionInfo.IsMetric` shortcut (the regression ADR 0002 guards against) — it simply hard-requests display units, leaving the locale logic entirely to F4.
 - **R3 — No empty state in F2.** PRD story 6 and Roadmap F5 describe a "no Active Location" empty state that invites a Place Search. F2 has a **hard-coded** Location, so that empty state has nothing to invite into and is correctly **absent** here (Roadmap F2 lists "the empty state" as out of scope); it arrives with Place Search in Feature 5. F2's failure states are Load-failed and Couldn't-update only.
 - **R4 — End-to-end suite now begins.** Spec 0001 deferred end-to-end testing ("the end-to-end suite arrives with real behaviour"). F2 is that first real behaviour, so it introduces the single live-Open-Meteo end-to-end test (Seam 1), satisfying Overriding Principle 4's "a separate end-to-end suite exercises the real Open-Meteo API deliberately" while keeping it out of the deterministic coverage gate.
+- **R5 — Amended for the combined fetch + shell VM (Feature 3 brainstorm, 2026-06-16).** Feature 3 (Daily Forecast) chose a **combined single fetch** — `current` + `daily` in one Open-Meteo request — so today's high/low and the live reading cannot drift (PRD *Further Notes*, "today appears twice"). Because F2 is **spec-only (not yet coded)**, the Feature owner chose to amend this spec **now** rather than have F3 retrofit F2's code. Three deltas land here: **(1)** the typed client's surface becomes the combined `GetWeatherAsync(Location, ct) → Result<WeatherSnapshot>` — this Feature lands `WeatherSnapshot.Current`, F3 lands `.Daily` (§4.2); **(2)** the fetch/refresh/state-machine lifecycle moves from the Current Conditions ViewModel to a **shell ViewModel**, with the Current Conditions VM becoming a presentation-only section (§4.1, §4.5, Seam 3); **(3)** `timezone=auto` is added to the request, which also **corrects** this Feature's "Updated HH:MM" to the Location's local time and buckets the day boundaries F3 needs (§4.3, Seam 1). **No F2 scope change** — the combined fetch is an implementation shape, not new behaviour; on-demand + 15-min auto-refresh, the four states, and the seven Weather Variables are all unchanged. Cross-referenced from `docs/superpowers/specs/0003-daily-forecast.md` §7 R1.
 
 ## 8. Context references (load these for `/writing-plans` and the AFK Developer Agent)
 
