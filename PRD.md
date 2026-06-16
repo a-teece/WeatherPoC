@@ -228,9 +228,10 @@ interfaces, separating pure domain logic from I/O:
 `.Result` / `.Wait()` / `.GetAwaiter().GetResult()` on the UI thread).
 
 **Units.** Conversion and localized formatting use UnitsNet. The CLDR
-unit-preference data source (candidate `Porticle.CLDR.Units`) needs a spike at
-spec time to confirm it exposes the usage+region→unit routing API before it is
-committed; otherwise the required CLDR slice is embedded. The User's per-measurement
+unit-preference data source spike is **resolved** (Feature 4 brainstorm, 2026-06-16):
+`Porticle.CLDR.Units` proved to be formatting-only with no usage+region→unit routing
+API, so the required CLDR slice (`weather`/`wind`/`rainfall` usages) is **embedded** and
+a pure resolver routes region→unit over it. The User's per-measurement
 overrides always sit on top of the CLDR-derived defaults.
 
 **Feedback.** The app's own UI is the only feedback channel: inline view state for
