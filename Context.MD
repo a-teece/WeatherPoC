@@ -32,5 +32,8 @@ The categorical state of the weather at a point in time — clear, cloudy, rain,
 ## Weather Variable
 An individual property of the weather — temperature, apparent ("feels-like") temperature, humidity, wind speed, wind direction, precipitation, and similar. Weather Variables are the building blocks that make up Current Conditions and each day of the Daily Forecast. The Weather Condition is the one categorical Weather Variable; the rest are numeric.
 
-## Unit System
-The set of measurement units in which Weather Variables are displayed — metric (°C, km·h⁻¹, mm) or imperial (°F, mph, in). WeatherPoC selects the Unit System automatically from the device locale by default, and the User may override that choice. A display concern only: it changes how a Weather Variable is shown, never the underlying value.
+## Measurement Unit
+The unit a given kind of Weather Variable is displayed in — for example °C or °F for temperature, mph or km·h⁻¹ for wind speed, mm or in for precipitation. A display concern only: changing it changes how a value is shown, never the underlying value.
+
+## Unit Preferences
+The User's chosen Measurement Unit for each kind of Weather Variable, selected **independently** — so temperature can read in °C while wind reads in mph (the common UK convention). Defaults are derived from the device locale; the User may override any individual Measurement Unit. Not a single metric-or-imperial switch: WeatherPoC has no one bundled "unit system" — each measurement is chosen on its own.

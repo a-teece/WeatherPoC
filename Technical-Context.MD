@@ -26,6 +26,7 @@ Reach for these before pulling in a new dependency. A new package needs a reason
 **UI / MVVM:** CommunityToolkit.Mvvm (observable objects, relay commands, source generators), CommunityToolkit.Maui (behaviors, converters, Snackbar/Toast, popups)
 **HTTP / resilience:** `IHttpClientFactory` (typed clients), Microsoft.Extensions.Http.Resilience (retry, timeout, circuit-breaker)
 **Serialization:** System.Text.Json (source-generated serialization)
+**Units:** UnitsNet (unit conversion + localized formatting); CLDR `unitPreferenceData` (`weather` usage) for locale-derived per-measurement defaults — *evaluating* `Porticle.CLDR.Units`, see `docs/adr/0002-per-measurement-unit-defaults.md`
 **DI / hosting:** Microsoft.Extensions.DependencyInjection via `MauiAppBuilder` (built in)
 **Secure storage:** Microsoft.Maui.Storage `SecureStorage`
 **Logging:** Serilog (+ Serilog.Extensions.Logging and a rolling-file sink)
