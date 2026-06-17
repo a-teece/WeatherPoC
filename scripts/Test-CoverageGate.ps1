@@ -36,14 +36,19 @@ try {
     Set-Content -LiteralPath $overCoveredFile -Value '<coverage lines-covered="11" lines-valid="10"></coverage>'
 
     $xxeUnusedFile = Join-Path $tmp 'xxe-unused.cobertura.xml'
-    # External entity declaration with no reference in the document body. The gate
-    # must reject this even though the entity is never expanded: any file containing
-    # a DTD internal subset is a potential XXE vector and must be treated as malformed.
+    # External entity declared in the DTD but never referenced in the body. Under
+    # DtdProcessing.Ignore the DTD is skipped wholesale — the entity is never defined
+    # and the external file is never fetched — so the document parses to its literal
+    # content (10/10) and the gate passes. This mirrors the benign <!DOCTYPE> that
+    # ReportGenerator's real report carries: a DOCTYPE alone must NOT break the gate.
     Set-Content -LiteralPath $xxeUnusedFile -Value '<?xml version="1.0"?><!DOCTYPE coverage [<!ENTITY xxe SYSTEM "file:///C:/Windows/System32/drivers/etc/hosts">]><coverage lines-covered="10" lines-valid="10"></coverage>'
 
     $xxeUsedFile = Join-Path $tmp 'xxe-used.cobertura.xml'
     # External entity injected into the lines-covered attribute — the classic XXE
-    # attribute-injection vector. Must be rejected as malformed, not silently coerced.
+    # attribute-injection vector. Because the DTD is ignored, the entity is undeclared,
+    # so the reference is a well-formedness error and the reader throws BEFORE any
+    # resolution; the file:// target is never fetched (XmlResolver = null). This proves
+    # XXE cannot occur: the attacker's entity is rejected as malformed, not expanded.
     Set-Content -LiteralPath $xxeUsedFile -Value '<?xml version="1.0"?><!DOCTYPE coverage [<!ENTITY xxe SYSTEM "file:///C:/Windows/System32/drivers/etc/hosts">]><coverage lines-covered="&xxe;" lines-valid="10"></coverage>'
 
     $nonNumericCoveredFile = Join-Path $tmp 'non-numeric-covered.cobertura.xml'
@@ -65,8 +70,8 @@ try {
         @{ Path = $wrongRootFile;           Expected = 3; Name = 'f: no <coverage> root -> malformed (exit 3)' },
         @{ Path = $missingAttrFile;         Expected = 3; Name = 'g: missing lines-covered attribute -> malformed (exit 3)' },
         @{ Path = $overCoveredFile;         Expected = 1; Name = 'h: covered > valid -> red, not exactly 100% (exit 1)' },
-        @{ Path = $xxeUnusedFile;           Expected = 3; Name = 'i: external entity declared but not used (xxe) -> malformed (exit 3)' },
-        @{ Path = $xxeUsedFile;             Expected = 3; Name = 'j: external entity injected into attribute (xxe) -> malformed (exit 3)' },
+        @{ Path = $xxeUnusedFile;           Expected = 0; Name = 'i: benign DOCTYPE, entity declared but unused -> DTD ignored, parses, not fetched (exit 0)' },
+        @{ Path = $xxeUsedFile;             Expected = 3; Name = 'j: external entity referenced -> undeclared, rejected before any fetch (exit 3)' },
         @{ Path = $nonNumericCoveredFile;   Expected = 3; Name = 'k: lines-covered not an integer -> malformed (exit 3)' },
         @{ Path = $nonNumericValidFile;     Expected = 3; Name = 'l: lines-valid not an integer -> malformed (exit 3)' }
     )

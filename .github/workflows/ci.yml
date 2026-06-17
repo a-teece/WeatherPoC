@@ -9,24 +9,41 @@ on:
       - 'feature/**'
       - 'story/**'
 
+permissions:
+  contents: read
+
 jobs:
   build-test-coverage:
     runs-on: windows-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Setup .NET 10 SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.x'
+
+      - name: Assert test project does not reference the app project (Seam 2)
+        shell: pwsh
+        run: |
+          $proj = Get-Content WeatherPoC.Tests/WeatherPoC.Tests.csproj -Raw
+          if ($proj -match 'WeatherPoC[\\/]WeatherPoC\.csproj') {
+            Write-Host "FAIL: test project references the app project (Seam 2 boundary violated)"
+            exit 1
+          }
+          Write-Host "OK: test project does not reference the app project"
 
       - name: Install MAUI workload
         run: dotnet workload install maui
 
-      - name: Restore (locked mode — Story #27)
-        run: dotnet restore WeatherPoC.slnx --locked-mode
+      # --locked-mode (Story #27) gates the dependency graph against the committed
+      # lockfiles; -r win-x64 (Story #21) downloads the Windows runtime pack the MAUI
+      # head needs to build (NETSDK1112). The lockfiles are RID-complete (regenerated
+      # with -r win-x64) so locked-mode and the RID restore agree.
+      - name: Restore (locked mode, win-x64 — Stories #27 + #21)
+        run: dotnet restore WeatherPoC.slnx --locked-mode -r win-x64
 
       - name: Build (Release) — proves the app compiles (Goal 1, Seam 3)
         run: dotnet build WeatherPoC.slnx -c Release --no-restore
@@ -49,10 +66,14 @@ jobs:
           -reporttypes:"Html;Cobertura"
 
       - name: Upload coverage report artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-report
           path: ${{ github.workspace }}/CoverageReport
+
+      - name: Coverage scope assertion (Seam 2)
+        shell: pwsh
+        run: ./scripts/Check-CoverageScope.ps1 -CoberturaPath ${{ github.workspace }}/CoverageReport/Cobertura.xml
 
       - name: Coverage threshold gate (Seam 1)
         shell: pwsh
@@ -61,6 +82,10 @@ jobs:
       - name: Coverage-gate self-test (Seam 1 proofs a/b/c)
         shell: pwsh
         run: ./scripts/Test-CoverageGate.ps1
+
+      - name: Coverage-scope self-test (Seam 2 proofs a/b/c/d)
+        shell: pwsh
+        run: ./scripts/Test-CoverageScope.ps1
 
       - name: Locked-restore self-test (Story #27 proof — bumped dependency rejected)
         shell: pwsh
