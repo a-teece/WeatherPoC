@@ -16,10 +16,13 @@ if (-not (Test-Path -LiteralPath $CoberturaPath)) {
     exit 2
 }
 
-# Parse defensively with XXE prevention — same approach as Check-Coverage.ps1.
+# Parse defensively with XXE prevention — same approach as Check-Coverage.ps1:
+# DtdProcessing.Ignore + null resolver is XXE-safe (no entity is ever expanded,
+# no external subset fetched) yet still parses ReportGenerator's real report,
+# which carries a <!DOCTYPE coverage SYSTEM "..."> declaration.
 try {
     $xmlSettings = [System.Xml.XmlReaderSettings]::new()
-    $xmlSettings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+    $xmlSettings.DtdProcessing = [System.Xml.DtdProcessing]::Ignore
     $xmlSettings.XmlResolver = $null
     $xmlReader = [System.Xml.XmlReader]::Create($CoberturaPath, $xmlSettings)
     try {

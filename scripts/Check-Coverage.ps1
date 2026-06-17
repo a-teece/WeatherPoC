@@ -23,14 +23,18 @@ if (-not (Test-Path -LiteralPath $CoberturaPath)) {
 # page written to the output path must surface as a distinct 'malformed report'
 # failure (exit 3), not a raw stack trace and not a coverage failure (exit 1).
 #
-# DtdProcessing.Prohibit prevents XXE: any DOCTYPE declaration—including one
-# carrying external entity definitions—causes the reader to throw immediately.
-# XmlResolver = null is belt-and-braces (Prohibit already blocks before
-# resolution, but explicit null documents intent and suppresses any future
-# default-resolver change in the runtime).
+# DtdProcessing.Ignore + XmlResolver = null is the XXE-safe posture that still
+# parses the real artefact: ReportGenerator's Cobertura output carries a
+# <!DOCTYPE coverage SYSTEM "...coverage-04.dtd"> declaration, so an outright
+# Prohibit would throw on the genuine report. Ignore skips the DTD entirely —
+# declared entities are never added and the external SYSTEM subset is never
+# fetched — and the null resolver blocks any external resolution, so no entity
+# is ever expanded (XXE cannot occur) while a benign DOCTYPE parses cleanly. A
+# document that *references* an entity still fails: the entity is undeclared
+# (the DTD was skipped), which is a well-formedness error caught as malformed.
 try {
     $xmlSettings = [System.Xml.XmlReaderSettings]::new()
-    $xmlSettings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+    $xmlSettings.DtdProcessing = [System.Xml.DtdProcessing]::Ignore
     $xmlSettings.XmlResolver = $null
     $xmlReader = [System.Xml.XmlReader]::Create($CoberturaPath, $xmlSettings)
     try {
