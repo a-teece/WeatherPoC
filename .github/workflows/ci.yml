@@ -38,8 +38,12 @@ jobs:
       - name: Install MAUI workload
         run: dotnet workload install maui
 
-      - name: Restore
-        run: dotnet restore WeatherPoC.slnx -r win-x64
+      # --locked-mode (Story #27) gates the dependency graph against the committed
+      # lockfiles; -r win-x64 (Story #21) downloads the Windows runtime pack the MAUI
+      # head needs to build (NETSDK1112). The lockfiles are RID-complete (regenerated
+      # with -r win-x64) so locked-mode and the RID restore agree.
+      - name: Restore (locked mode, win-x64 — Stories #27 + #21)
+        run: dotnet restore WeatherPoC.slnx --locked-mode -r win-x64
 
       - name: Build (Release) — proves the app compiles (Goal 1, Seam 3)
         run: dotnet build WeatherPoC.slnx -c Release --no-restore
@@ -82,3 +86,7 @@ jobs:
       - name: Coverage-scope self-test (Seam 2 proofs a/b/c/d)
         shell: pwsh
         run: ./scripts/Test-CoverageScope.ps1
+
+      - name: Locked-restore self-test (Story #27 proof — bumped dependency rejected)
+        shell: pwsh
+        run: ./scripts/Test-LockedRestore.ps1
