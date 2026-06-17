@@ -46,17 +46,29 @@ try {
     # attribute-injection vector. Must be rejected as malformed, not silently coerced.
     Set-Content -LiteralPath $xxeUsedFile -Value '<?xml version="1.0"?><!DOCTYPE coverage [<!ENTITY xxe SYSTEM "file:///C:/Windows/System32/drivers/etc/hosts">]><coverage lines-covered="&xxe;" lines-valid="10"></coverage>'
 
+    $nonNumericCoveredFile = Join-Path $tmp 'non-numeric-covered.cobertura.xml'
+    # lines-covered attribute is present but not parseable as an integer. The gate must
+    # treat this as a malformed report (exit 3), not coerce the value to 0 and pass.
+    Set-Content -LiteralPath $nonNumericCoveredFile -Value '<coverage lines-covered="abc" lines-valid="10"></coverage>'
+
+    $nonNumericValidFile = Join-Path $tmp 'non-numeric-valid.cobertura.xml'
+    # lines-valid attribute is present but not parseable as an integer. Same rule as above:
+    # must be treated as a malformed report (exit 3), not coerced to 0.
+    Set-Content -LiteralPath $nonNumericValidFile -Value '<coverage lines-covered="5" lines-valid="xyz"></coverage>'
+
     $cases = @(
         @{ Path = (Join-Path $fixtures 'green.cobertura.xml'); Expected = 0; Name = 'a: fully covered -> green (exit 0)' },
         @{ Path = (Join-Path $fixtures 'below.cobertura.xml'); Expected = 1; Name = 'b: covered < valid -> red, coverage below 100% (exit 1)' },
         @{ Path = (Join-Path $fixtures 'empty.cobertura.xml'); Expected = 1; Name = 'c: valid == 0 -> red, no coverable lines (exit 1)' },
-        @{ Path = $missingFile;     Expected = 2; Name = 'd: report file missing -> exit 2' },
-        @{ Path = $malformedFile;   Expected = 3; Name = 'e: not well-formed XML -> malformed (exit 3)' },
-        @{ Path = $wrongRootFile;   Expected = 3; Name = 'f: no <coverage> root -> malformed (exit 3)' },
-        @{ Path = $missingAttrFile; Expected = 3; Name = 'g: missing lines-covered attribute -> malformed (exit 3)' },
-        @{ Path = $overCoveredFile;  Expected = 1; Name = 'h: covered > valid -> red, not exactly 100% (exit 1)' },
-        @{ Path = $xxeUnusedFile;   Expected = 3; Name = 'i: external entity declared but not used (xxe) -> malformed (exit 3)' },
-        @{ Path = $xxeUsedFile;     Expected = 3; Name = 'j: external entity injected into attribute (xxe) -> malformed (exit 3)' }
+        @{ Path = $missingFile;             Expected = 2; Name = 'd: report file missing -> exit 2' },
+        @{ Path = $malformedFile;           Expected = 3; Name = 'e: not well-formed XML -> malformed (exit 3)' },
+        @{ Path = $wrongRootFile;           Expected = 3; Name = 'f: no <coverage> root -> malformed (exit 3)' },
+        @{ Path = $missingAttrFile;         Expected = 3; Name = 'g: missing lines-covered attribute -> malformed (exit 3)' },
+        @{ Path = $overCoveredFile;         Expected = 1; Name = 'h: covered > valid -> red, not exactly 100% (exit 1)' },
+        @{ Path = $xxeUnusedFile;           Expected = 3; Name = 'i: external entity declared but not used (xxe) -> malformed (exit 3)' },
+        @{ Path = $xxeUsedFile;             Expected = 3; Name = 'j: external entity injected into attribute (xxe) -> malformed (exit 3)' },
+        @{ Path = $nonNumericCoveredFile;   Expected = 3; Name = 'k: lines-covered not an integer -> malformed (exit 3)' },
+        @{ Path = $nonNumericValidFile;     Expected = 3; Name = 'l: lines-valid not an integer -> malformed (exit 3)' }
     )
 
     foreach ($case in $cases) {
@@ -80,5 +92,5 @@ if ($failures -gt 0) {
     exit 1
 }
 
-Write-Host "Coverage-gate self-test passed (Seam 1 proofs a, b, c; guard rails d, e, f, g, h, i, j)."
+Write-Host "Coverage-gate self-test passed (Seam 1 proofs a, b, c; guard rails d, e, f, g, h, i, j, k, l)."
 exit 0
