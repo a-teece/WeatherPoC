@@ -35,6 +35,17 @@ try {
     # lines-covered > lines-valid - a malformed result that -lt would let pass.
     Set-Content -LiteralPath $overCoveredFile -Value '<coverage lines-covered="11" lines-valid="10"></coverage>'
 
+    $xxeUnusedFile = Join-Path $tmp 'xxe-unused.cobertura.xml'
+    # External entity declaration with no reference in the document body. The gate
+    # must reject this even though the entity is never expanded: any file containing
+    # a DTD internal subset is a potential XXE vector and must be treated as malformed.
+    Set-Content -LiteralPath $xxeUnusedFile -Value '<?xml version="1.0"?><!DOCTYPE coverage [<!ENTITY xxe SYSTEM "file:///C:/Windows/System32/drivers/etc/hosts">]><coverage lines-covered="10" lines-valid="10"></coverage>'
+
+    $xxeUsedFile = Join-Path $tmp 'xxe-used.cobertura.xml'
+    # External entity injected into the lines-covered attribute — the classic XXE
+    # attribute-injection vector. Must be rejected as malformed, not silently coerced.
+    Set-Content -LiteralPath $xxeUsedFile -Value '<?xml version="1.0"?><!DOCTYPE coverage [<!ENTITY xxe SYSTEM "file:///C:/Windows/System32/drivers/etc/hosts">]><coverage lines-covered="&xxe;" lines-valid="10"></coverage>'
+
     $cases = @(
         @{ Path = (Join-Path $fixtures 'green.cobertura.xml'); Expected = 0; Name = 'a: fully covered -> green (exit 0)' },
         @{ Path = (Join-Path $fixtures 'below.cobertura.xml'); Expected = 1; Name = 'b: covered < valid -> red, coverage below 100% (exit 1)' },
@@ -43,7 +54,9 @@ try {
         @{ Path = $malformedFile;   Expected = 3; Name = 'e: not well-formed XML -> malformed (exit 3)' },
         @{ Path = $wrongRootFile;   Expected = 3; Name = 'f: no <coverage> root -> malformed (exit 3)' },
         @{ Path = $missingAttrFile; Expected = 3; Name = 'g: missing lines-covered attribute -> malformed (exit 3)' },
-        @{ Path = $overCoveredFile; Expected = 1; Name = 'h: covered > valid -> red, not exactly 100% (exit 1)' }
+        @{ Path = $overCoveredFile;  Expected = 1; Name = 'h: covered > valid -> red, not exactly 100% (exit 1)' },
+        @{ Path = $xxeUnusedFile;   Expected = 3; Name = 'i: external entity declared but not used (xxe) -> malformed (exit 3)' },
+        @{ Path = $xxeUsedFile;     Expected = 3; Name = 'j: external entity injected into attribute (xxe) -> malformed (exit 3)' }
     )
 
     foreach ($case in $cases) {
@@ -67,5 +80,5 @@ if ($failures -gt 0) {
     exit 1
 }
 
-Write-Host "Coverage-gate self-test passed (Seam 1 proofs a, b, c; guard rails d, e, f, g, h)."
+Write-Host "Coverage-gate self-test passed (Seam 1 proofs a, b, c; guard rails d, e, f, g, h, i, j)."
 exit 0

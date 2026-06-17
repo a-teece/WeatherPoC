@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-04.dtd">
 <coverage line-rate="0.9090909090909091" branch-rate="1" lines-covered="10" lines-valid="11" branches-covered="0" branches-valid="0" complexity="2" version="0" timestamp="1781716997">
   <sources>
     <source>C:\</source>
