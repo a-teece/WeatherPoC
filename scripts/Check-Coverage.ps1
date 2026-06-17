@@ -22,8 +22,24 @@ if (-not (Test-Path -LiteralPath $CoberturaPath)) {
 # Parse defensively. A truncated coverlet run, a UTF-16 BOM, or an HTML error
 # page written to the output path must surface as a distinct 'malformed report'
 # failure (exit 3), not a raw stack trace and not a coverage failure (exit 1).
+#
+# DtdProcessing.Prohibit prevents XXE: any DOCTYPE declaration—including one
+# carrying external entity definitions—causes the reader to throw immediately.
+# XmlResolver = null is belt-and-braces (Prohibit already blocks before
+# resolution, but explicit null documents intent and suppresses any future
+# default-resolver change in the runtime).
 try {
-    [xml]$report = Get-Content -LiteralPath $CoberturaPath -Raw
+    $xmlSettings = [System.Xml.XmlReaderSettings]::new()
+    $xmlSettings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+    $xmlSettings.XmlResolver = $null
+    $xmlReader = [System.Xml.XmlReader]::Create($CoberturaPath, $xmlSettings)
+    try {
+        $report = [System.Xml.XmlDocument]::new()
+        $report.Load($xmlReader)
+    }
+    finally {
+        $xmlReader.Dispose()
+    }
 }
 catch {
     Write-Host "FAIL: coverage report at '$CoberturaPath' is not well-formed XML - $($_.Exception.Message)"
