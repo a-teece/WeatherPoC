@@ -22,14 +22,6 @@ if (-not (Get-Command gitleaks -ErrorAction SilentlyContinue)) {
 
 Write-Host ("SECRET-SCAN SELF-TEST: gitleaks {0}" -f (& gitleaks version 2>&1))
 
-# GitHub's Windows runners create directories owned by the Administrators group,
-# which trips git's "dubious ownership" guard when gitleaks shells out to `git log`
-# on the temp repos below — the same guard actions/checkout works around by adding
-# the workspace to safe.directory. Without this, gitleaks errors out (a non-zero
-# exit that is NOT a real detection): case (a) passed spuriously and case (b) failed
-# with exit 126. Trust these ephemeral, self-created CI repos so the scan actually runs.
-git config --global --add safe.directory '*'
-
 $failures = 0
 
 function New-TempGitRepo {
@@ -55,13 +47,22 @@ try {
     git -C $canaryDir add .
     git -C $canaryDir commit -q -m "config: add environment settings"
 
-    & gitleaks detect --source $canaryDir --no-banner --quiet 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "SELFTEST FAIL [a: canary AWS key committed -> should be non-zero, got 0]"
+    # gitleaks exit codes: 0 = clean, 1 = leaks found. Any other code is gitleaks
+    # itself erroring, which must NOT be mistaken for a detection (the previous
+    # version passed `--quiet`, which gitleaks does not accept; it errored on every
+    # run and case (a) passed spuriously while case (b) failed — exit 126).
+    & gitleaks detect --source $canaryDir --no-banner --redact
+    $code = $LASTEXITCODE
+    if ($code -eq 1) {
+        Write-Host "SELFTEST PASS [a: canary AWS key committed -> gitleaks detects it (exit 1)]"
+    }
+    elseif ($code -eq 0) {
+        Write-Host "SELFTEST FAIL [a: canary AWS key committed -> NOT detected (exit 0)]"
         $failures++
     }
     else {
-        Write-Host "SELFTEST PASS [a: canary AWS key committed -> gitleaks detects it (exit $LASTEXITCODE)]"
+        Write-Host "SELFTEST FAIL [a: canary -> gitleaks errored (exit $code), not a detection]"
+        $failures++
     }
 
     # ── (b) clean ─────────────────────────────────────────────────────────────
@@ -72,13 +73,18 @@ try {
     git -C $cleanDir add .
     git -C $cleanDir commit -q -m "docs: initial commit"
 
-    & gitleaks detect --source $cleanDir --no-banner --quiet 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "SELFTEST FAIL [b: clean repo -> should exit 0, got $LASTEXITCODE]"
+    & gitleaks detect --source $cleanDir --no-banner --redact
+    $code = $LASTEXITCODE
+    if ($code -eq 0) {
+        Write-Host "SELFTEST PASS [b: clean repo -> gitleaks passes (exit 0)]"
+    }
+    elseif ($code -eq 1) {
+        Write-Host "SELFTEST FAIL [b: clean repo -> false positive (exit 1)]"
         $failures++
     }
     else {
-        Write-Host "SELFTEST PASS [b: clean repo -> gitleaks passes (exit 0)]"
+        Write-Host "SELFTEST FAIL [b: clean repo -> gitleaks errored (exit $code), not exit 0]"
+        $failures++
     }
 }
 finally {
