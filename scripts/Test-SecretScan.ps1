@@ -22,6 +22,14 @@ if (-not (Get-Command gitleaks -ErrorAction SilentlyContinue)) {
 
 Write-Host ("SECRET-SCAN SELF-TEST: gitleaks {0}" -f (& gitleaks version 2>&1))
 
+# GitHub's Windows runners create directories owned by the Administrators group,
+# which trips git's "dubious ownership" guard when gitleaks shells out to `git log`
+# on the temp repos below — the same guard actions/checkout works around by adding
+# the workspace to safe.directory. Without this, gitleaks errors out (a non-zero
+# exit that is NOT a real detection): case (a) passed spuriously and case (b) failed
+# with exit 126. Trust these ephemeral, self-created CI repos so the scan actually runs.
+git config --global --add safe.directory '*'
+
 $failures = 0
 
 function New-TempGitRepo {
