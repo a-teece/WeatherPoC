@@ -1,7 +1,0 @@
-{
-  "skill": "finalization",
-  "result": "pass",
-  "reason": null,
-  "summary": "ADR compliance passed; docs synced (README.md, CLAUDE.md, CHANGELOG.md created; PRD.md and Technical-Context.MD already accurate).",
-  "findings": []
-}
