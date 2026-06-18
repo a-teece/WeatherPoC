@@ -50,6 +50,21 @@ jobs:
         shell: pwsh
         run: ./scripts/Test-ActionsPinned.ps1
 
+  workflow-permissions:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Verify workflows declare least-privilege permissions (Story #25)
+        shell: pwsh
+        run: ./scripts/Check-WorkflowPermissions.ps1
+
+      - name: Workflow-permissions self-test (Story #25 proofs a-i)
+        shell: pwsh
+        run: ./scripts/Test-WorkflowPermissions.ps1
+
   build-test-coverage:
     runs-on: windows-latest
 
