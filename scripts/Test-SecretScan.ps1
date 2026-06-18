@@ -36,13 +36,16 @@ function New-TempGitRepo {
 $tmpDirs = [System.Collections.Generic.List[string]]::new()
 try {
     # ── (a) canary ────────────────────────────────────────────────────────────
-    # Fake AWS access key committed in a temp repo → gitleaks must exit non-zero.
-    # The key ID is split across two literals ("AKIA" + "IOSFODNN7EXAMPLE") so the
-    # 20-char token does not appear as a continuous substring in this committed
-    # script file; the full token only exists in the temp repo's git history.
+    # Fake AWS access key committed in a temp repo → gitleaks must detect it (exit 1).
+    # NB: the canonical AWS docs key AKIAIOSFODNN7EXAMPLE is NOT usable here — gitleaks'
+    # default config allowlists the "EXAMPLE" stopword, so it is deliberately ignored
+    # (which is why the original canary never actually triggered a detection). Use a
+    # fake key with no allowlisted stopword. It is split across two literals so the full
+    # 20-char token is not a continuous substring of THIS committed file (only of the
+    # temp repo's history), keeping the main-repo scan clean.
     $canaryDir = New-TempGitRepo
     $tmpDirs.Add($canaryDir)
-    $fakeKeyId = "AKIA" + "IOSFODNN7EXAMPLE"
+    $fakeKeyId = "AKIA" + "7Q2VK9XR4ZP1MWNJ"
     Set-Content -LiteralPath (Join-Path $canaryDir '.env') -Value "AWS_ACCESS_KEY_ID=$fakeKeyId"
     git -C $canaryDir add .
     git -C $canaryDir commit -q -m "config: add environment settings"
