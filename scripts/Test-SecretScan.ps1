@@ -36,24 +36,36 @@ function New-TempGitRepo {
 $tmpDirs = [System.Collections.Generic.List[string]]::new()
 try {
     # ── (a) canary ────────────────────────────────────────────────────────────
-    # Fake AWS access key committed in a temp repo → gitleaks must exit non-zero.
-    # The key ID is split across two literals ("AKIA" + "IOSFODNN7EXAMPLE") so the
-    # 20-char token does not appear as a continuous substring in this committed
-    # script file; the full token only exists in the temp repo's git history.
+    # Fake AWS access key committed in a temp repo → gitleaks must detect it (exit 1).
+    # NB: the canonical AWS docs key AKIAIOSFODNN7EXAMPLE is NOT usable here — gitleaks'
+    # default config allowlists the "EXAMPLE" stopword, so it is deliberately ignored
+    # (which is why the original canary never actually triggered a detection). Use a
+    # fake key with no allowlisted stopword. It is split across two literals so the full
+    # 20-char token is not a continuous substring of THIS committed file (only of the
+    # temp repo's history), keeping the main-repo scan clean.
     $canaryDir = New-TempGitRepo
     $tmpDirs.Add($canaryDir)
-    $fakeKeyId = "AKIA" + "IOSFODNN7EXAMPLE"
+    $fakeKeyId = "AKIA" + "7Q2VK9XR4ZP1MWNJ"
     Set-Content -LiteralPath (Join-Path $canaryDir '.env') -Value "AWS_ACCESS_KEY_ID=$fakeKeyId"
     git -C $canaryDir add .
     git -C $canaryDir commit -q -m "config: add environment settings"
 
-    & gitleaks detect --source $canaryDir --no-banner --quiet 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "SELFTEST FAIL [a: canary AWS key committed -> should be non-zero, got 0]"
+    # gitleaks exit codes: 0 = clean, 1 = leaks found. Any other code is gitleaks
+    # itself erroring, which must NOT be mistaken for a detection (the previous
+    # version passed `--quiet`, which gitleaks does not accept; it errored on every
+    # run and case (a) passed spuriously while case (b) failed — exit 126).
+    & gitleaks detect --source $canaryDir --no-banner --redact
+    $code = $LASTEXITCODE
+    if ($code -eq 1) {
+        Write-Host "SELFTEST PASS [a: canary AWS key committed -> gitleaks detects it (exit 1)]"
+    }
+    elseif ($code -eq 0) {
+        Write-Host "SELFTEST FAIL [a: canary AWS key committed -> NOT detected (exit 0)]"
         $failures++
     }
     else {
-        Write-Host "SELFTEST PASS [a: canary AWS key committed -> gitleaks detects it (exit $LASTEXITCODE)]"
+        Write-Host "SELFTEST FAIL [a: canary -> gitleaks errored (exit $code), not a detection]"
+        $failures++
     }
 
     # ── (b) clean ─────────────────────────────────────────────────────────────
@@ -64,13 +76,18 @@ try {
     git -C $cleanDir add .
     git -C $cleanDir commit -q -m "docs: initial commit"
 
-    & gitleaks detect --source $cleanDir --no-banner --quiet 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "SELFTEST FAIL [b: clean repo -> should exit 0, got $LASTEXITCODE]"
+    & gitleaks detect --source $cleanDir --no-banner --redact
+    $code = $LASTEXITCODE
+    if ($code -eq 0) {
+        Write-Host "SELFTEST PASS [b: clean repo -> gitleaks passes (exit 0)]"
+    }
+    elseif ($code -eq 1) {
+        Write-Host "SELFTEST FAIL [b: clean repo -> false positive (exit 1)]"
         $failures++
     }
     else {
-        Write-Host "SELFTEST PASS [b: clean repo -> gitleaks passes (exit 0)]"
+        Write-Host "SELFTEST FAIL [b: clean repo -> gitleaks errored (exit $code), not exit 0]"
+        $failures++
     }
 }
 finally {

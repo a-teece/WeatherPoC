@@ -3,3 +3,6 @@ bin/
 obj/
 TestResults/
 CoverageReport/
+
+# AFK orchestrator run artifacts (enate-sdlc-orchestrator) — must never be committed
+.orchestrator/
