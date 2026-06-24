@@ -51,8 +51,8 @@ The app's own UI is the only feedback channel (no email/Slack/push for a desktop
 **Tone: friendly and actionable.** User-facing copy says what happened and what to do next ("Couldn't reach the weather service. Check your connection and try again."). Never surface raw error codes or stack traces to the user — that detail goes to the log only.
 
 ## Branching and Environments
-- **Model:** Trunk-based. Short-lived feature branches merge into `main` via PR with review and green CI.
-- **Branches:** `main` (integration), short-lived `feature/*` branches off `main`.
+- **Model:** Trunk-based. `main` only moves through a PR that passes CI. The branching & merge rules are owned by `CONTRIBUTING.md` (Factory standard); this section covers environments.
+- **Branches:** `main` (integration); HITL work on `claude/<slug>` branches; AFK orchestrator work on one `story/<issue#>-<slug>` branch per Story, squash-merged into `main`.
 - **Environments (release channels):** desktop app, so channels replace server tiers —
   - **Debug** — local development builds.
   - **Release** — signed installer shipped to end-user desktops; a tag on `main` triggers the release build.
@@ -65,4 +65,4 @@ Require explicit human confirmation to override:
 - **No direct commits to `main`** and **no committing secrets** (API keys, `SecureStorage` values, signing certificates/passwords). Changes land via PR.
 - **No merge to `main` without deterministic checks** — once CI/pipeline gating is in place, a merge requires it green.
 
-Hooks: none installed yet (fresh repo). Candidates to wire up later — `git-guardrails-claude-code` (blocks dangerous git commands at the Claude Code layer) and a Husky.NET pre-commit gate running `dotnet format` + `dotnet test`.
+Enforced in CI (`.github/workflows/ci.yml`): secret scanning (gitleaks), SHA-pinned GitHub Actions verification, locked-mode NuGet restore, and the 100% coverage gate + scope assertion. Candidates still to wire up locally — `git-guardrails-claude-code` (blocks dangerous git commands at the Claude Code layer) and a Husky.NET pre-commit gate running `dotnet format` + `dotnet test`.

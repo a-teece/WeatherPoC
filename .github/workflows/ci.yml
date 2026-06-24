@@ -142,3 +142,21 @@ jobs:
       - name: Locked-restore self-test (Story #27 proof — bumped dependency rejected)
         shell: pwsh
         run: ./scripts/Test-LockedRestore.ps1
+
+  # Stable aggregate gate. Branch protection requires this single `ci` context, so the
+  # individual jobs above can be renamed, split, or added to without ever revisiting the
+  # protection rule. If any required job fails or is skipped, this job fails.
+  ci:
+    name: ci
+    needs: [secret-scan, actions-pinned, workflow-permissions, build-test-coverage]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all required jobs succeeded
+        shell: bash
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "true" ]; then
+            echo "FAIL: one or more required CI jobs did not succeed"
+            exit 1
+          fi
+          echo "OK: all required CI jobs succeeded"
